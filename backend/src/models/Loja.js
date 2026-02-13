@@ -21,6 +21,16 @@ module.exports = (sequelize, DataTypes) => {
     prazo_pagamento_dias: {
       type: DataTypes.INTEGER
     },
+    usa_porcentagem: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+    porcentagem_repasse: {
+      type: DataTypes.DECIMAL(5, 2)
+    },
+    observacoes_pagamento: {
+      type: DataTypes.TEXT
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

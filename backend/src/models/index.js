@@ -9,11 +9,13 @@ const ClienteParticular = require('./ClienteParticular')(sequelize, Sequelize.Da
 const Produto = require('./Produto')(sequelize, Sequelize.DataTypes);
 const Servico = require('./Servico')(sequelize, Sequelize.DataTypes);
 const ServicoProduto = require('./ServicoProduto')(sequelize, Sequelize.DataTypes);
+const ServicoMontador = require('./ServicoMontador')(sequelize, Sequelize.DataTypes);
 const Rota = require('./Rota')(sequelize, Sequelize.DataTypes);
 const RotaServico = require('./RotaServico')(sequelize, Sequelize.DataTypes);
 const Recebimento = require('./Recebimento')(sequelize, Sequelize.DataTypes);
 const PagamentoFuncionario = require('./PagamentoFuncionario')(sequelize, Sequelize.DataTypes);
 const Despesa = require('./Despesa')(sequelize, Sequelize.DataTypes);
+const Configuracao = require('./Configuracao')(sequelize, Sequelize.DataTypes);
 
 Equipe.hasMany(EquipeMembro, { foreignKey: 'equipe_id' });
 EquipeMembro.belongsTo(Equipe, { foreignKey: 'equipe_id' });
@@ -30,6 +32,13 @@ Servico.hasMany(ServicoProduto, { foreignKey: 'servico_id' });
 Produto.hasMany(ServicoProduto, { foreignKey: 'produto_id' });
 ServicoProduto.belongsTo(Servico, { foreignKey: 'servico_id' });
 ServicoProduto.belongsTo(Produto, { foreignKey: 'produto_id' });
+
+Servico.hasMany(ServicoMontador, { foreignKey: 'servico_id', as: 'montadores' });
+ServicoMontador.belongsTo(Servico, { foreignKey: 'servico_id' });
+ServicoMontador.belongsTo(Usuario, { foreignKey: 'usuario_id' });
+ServicoMontador.belongsTo(Equipe, { foreignKey: 'equipe_id' });
+Usuario.hasMany(ServicoMontador, { foreignKey: 'usuario_id' });
+Equipe.hasMany(ServicoMontador, { foreignKey: 'equipe_id' });
 
 Equipe.hasMany(Rota, { foreignKey: 'equipe_id' });
 Rota.belongsTo(Equipe, { foreignKey: 'equipe_id' });
@@ -64,10 +73,12 @@ module.exports = {
     Produto,
     Servico,
     ServicoProduto,
+    ServicoMontador,
     Rota,
     RotaServico,
     Recebimento,
     PagamentoFuncionario,
-    Despesa
+    Despesa,
+    Configuracao
   }
 };

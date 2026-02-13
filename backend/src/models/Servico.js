@@ -41,6 +41,9 @@ module.exports = (sequelize, DataTypes) => {
     valor_total: {
       type: DataTypes.DECIMAL(10, 2)
     },
+    valor_repasse_montagem: {
+      type: DataTypes.DECIMAL(10, 2)
+    },
     status: {
       type: DataTypes.STRING(20)
     },

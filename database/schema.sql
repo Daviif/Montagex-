@@ -22,6 +22,24 @@ CREATE TABLE usuarios (
 CREATE INDEX idx_usuarios_tipo ON usuarios(tipo);
 
 -- =====================================================
+-- CONFIGURACOES DO SISTEMA
+-- =====================================================
+
+CREATE TABLE configuracoes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    chave VARCHAR(100) UNIQUE NOT NULL,
+    valor TEXT,
+    descricao TEXT,
+    tipo VARCHAR(50), -- 'texto', 'numero', 'percentual', 'formula'
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+-- Inserir configurações padrão
+INSERT INTO configuracoes (chave, valor, descricao, tipo) VALUES
+('salario_formula', 'valor_montagem', 'Fórmula para cálculo de salário: valor_montagem, valor_montagem * 1.1, etc', 'formula'),
+('salario_base_padrao', '0', 'Valor base adicional ao salário (além das montagens)', 'numero');
+
+-- =====================================================
 -- EQUIPES
 -- =====================================================
 
@@ -58,6 +76,12 @@ CREATE TABLE lojas (
     email VARCHAR(120),
     endereco TEXT,
     prazo_pagamento_dias INT,
+    
+    -- Configuração de cálculo de repasse
+    usa_porcentagem BOOLEAN DEFAULT false,
+    porcentagem_repasse NUMERIC(5,2), -- Ex: 5.00 para 5%
+    observacoes_pagamento TEXT,
+    
     created_at TIMESTAMP DEFAULT now()
 );
 
@@ -113,6 +137,7 @@ CREATE TABLE servicos (
     janela_fim TIME,
 
     valor_total NUMERIC(10,2),
+    valor_repasse_montagem NUMERIC(10,2), -- Valor que será distribuído aos montadores
 
     status VARCHAR(20)
         CHECK (status IN ('agendado','em_rota','concluido','cancelado')),
@@ -147,6 +172,37 @@ CREATE TABLE servico_produtos (
 );
 
 CREATE INDEX idx_servico_produtos_servico ON servico_produtos(servico_id);
+
+-- =====================================================
+-- SERVICO_MONTADORES
+-- =====================================================
+
+CREATE TABLE servico_montadores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
+    
+    -- Pode ser montador individual OU equipe
+    usuario_id UUID REFERENCES usuarios(id),
+    equipe_id UUID REFERENCES equipes(id),
+    
+    -- Valor atribuído a este montador/equipe
+    valor_atribuido NUMERIC(10,2) NOT NULL,
+    percentual_divisao NUMERIC(5,2), -- Percentual dentro do serviço (ex: 70% principal, 30% auxiliar)
+    
+    papel VARCHAR(20) CHECK (papel IN ('principal','auxiliar')),
+    
+    created_at TIMESTAMP DEFAULT now(),
+    
+    CHECK (
+        (usuario_id IS NOT NULL AND equipe_id IS NULL)
+        OR
+        (equipe_id IS NOT NULL AND usuario_id IS NULL)
+    )
+);
+
+CREATE INDEX idx_servico_montadores_servico ON servico_montadores(servico_id);
+CREATE INDEX idx_servico_montadores_usuario ON servico_montadores(usuario_id);
+CREATE INDEX idx_servico_montadores_equipe ON servico_montadores(equipe_id);
 
 -- =====================================================
 -- ROTAS

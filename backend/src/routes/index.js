@@ -2,6 +2,7 @@ const express = require('express');
 const createCrudRouter = require('./crudRouter');
 const authMiddleware = require('../middleware/auth');
 const authRoutes = require('./auth');
+const dashboardSalariosRoutes = require('./dashboardSalarios');
 const { models } = require('../models');
 
 const router = express.Router();
@@ -16,6 +17,9 @@ router.use('/auth', authRoutes);
 // Middleware de autenticação para todas as outras rotas
 router.use(authMiddleware);
 
+// Rotas de dashboard
+router.use('/dashboard', dashboardSalariosRoutes);
+
 const routeMap = {
   usuarios: models.Usuario,
   equipes: models.Equipe,
@@ -25,11 +29,13 @@ const routeMap = {
   produtos: models.Produto,
   servicos: models.Servico,
   servico_produtos: models.ServicoProduto,
+  servico_montadores: models.ServicoMontador,
   rotas: models.Rota,
   rota_servicos: models.RotaServico,
   recebimentos: models.Recebimento,
   pagamentos_funcionarios: models.PagamentoFuncionario,
-  despesas: models.Despesa
+  despesas: models.Despesa,
+  configuracoes: models.Configuracao
 };
 
 Object.entries(routeMap).forEach(([path, model]) => {
