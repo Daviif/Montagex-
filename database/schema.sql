@@ -72,6 +72,9 @@ CREATE INDEX idx_equipe_membros_usuario ON equipe_membros(usuario_id);
 CREATE TABLE lojas (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nome VARCHAR(150) NOT NULL,
+    cnpj VARCHAR(18),
+    razao_social VARCHAR(150),
+    nome_fantasia VARCHAR(150),
     telefone VARCHAR(20),
     email VARCHAR(120),
     endereco TEXT,
@@ -104,12 +107,14 @@ CREATE TABLE clientes_particulares (
 CREATE TABLE produtos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nome VARCHAR(150) NOT NULL,
+    loja_id UUID NOT NULL REFERENCES lojas(id) ON DELETE CASCADE,
     valor_base NUMERIC(10,2),
     tempo_base_min INT NOT NULL,
     ativo BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT now()
 );
 
+CREATE UNIQUE INDEX idx_produtos_loja_nome ON produtos(loja_id, nome);
 CREATE INDEX idx_produtos_ativo ON produtos(ativo);
 
 -- =====================================================

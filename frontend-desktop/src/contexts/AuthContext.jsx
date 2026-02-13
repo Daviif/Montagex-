@@ -28,8 +28,7 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (email, senha) => {
     try {
       const response = await api.post('/auth/login', { email, senha })
-      
-      const { token, usuario } = response.data.data
+      const { token, usuario } = response.data
 
       setUser(usuario)
       
@@ -43,9 +42,9 @@ export const AuthProvider = ({ children }) => {
       return { success: true }
     } catch (error) {
       console.error('Erro ao fazer login:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Erro ao fazer login' 
+      return {
+        success: false,
+        message: error.response?.data?.error || 'Erro ao fazer login'
       }
     }
   }

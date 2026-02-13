@@ -9,6 +9,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(150),
       allowNull: false
     },
+    loja_id: {
+      type: DataTypes.UUID,
+      allowNull: false
+    },
     valor_base: {
       type: DataTypes.DECIMAL(10, 2)
     },

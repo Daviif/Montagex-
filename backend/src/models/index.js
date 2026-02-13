@@ -28,6 +28,9 @@ ClienteParticular.hasMany(Servico, { foreignKey: 'cliente_particular_id' });
 Servico.belongsTo(Loja, { foreignKey: 'loja_id' });
 Servico.belongsTo(ClienteParticular, { foreignKey: 'cliente_particular_id' });
 
+Loja.hasMany(Produto, { foreignKey: 'loja_id' });
+Produto.belongsTo(Loja, { foreignKey: 'loja_id' });
+
 Servico.hasMany(ServicoProduto, { foreignKey: 'servico_id' });
 Produto.hasMany(ServicoProduto, { foreignKey: 'produto_id' });
 ServicoProduto.belongsTo(Servico, { foreignKey: 'servico_id' });

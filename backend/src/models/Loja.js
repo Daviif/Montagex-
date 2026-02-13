@@ -5,9 +5,14 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
-    nome: {
-      type: DataTypes.STRING(150),
-      allowNull: false
+    cnpj: {
+      type: DataTypes.STRING(18)
+    },
+    razao_social: {
+      type: DataTypes.STRING(150)
+    },
+    nome_fantasia: {
+      type: DataTypes.STRING(150)
     },
     telefone: {
       type: DataTypes.STRING(20)
