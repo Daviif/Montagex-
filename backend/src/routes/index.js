@@ -1,5 +1,7 @@
 const express = require('express');
 const createCrudRouter = require('./crudRouter');
+const authMiddleware = require('../middleware/auth');
+const authRoutes = require('./auth');
 const { models } = require('../models');
 
 const router = express.Router();
@@ -7,6 +9,12 @@ const router = express.Router();
 router.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Rotas públicas de autenticação
+router.use('/auth', authRoutes);
+
+// Middleware de autenticação para todas as outras rotas
+router.use(authMiddleware);
 
 const routeMap = {
   usuarios: models.Usuario,
