@@ -59,28 +59,97 @@ router.get('/', async (req, res) => {
       }
     };
     
+    const servicosPeriodo = await models.Servico.findAll({
+      where: {
+        data_servico: {
+          [Op.between]: [dataInicio, dataFim]
+        },
+        status: 'concluido'
+      },
+      include: [{
+        model: models.Loja,
+        attributes: ['id', 'usa_porcentagem', 'porcentagem_repasse', 'nome_fantasia', 'razao_social']
+      }],
+      attributes: ['id', 'codigo_servico', 'data_servico', 'valor_total', 'valor_repasse_montagem', 'tipo_cliente', 'loja_id', 'cliente_particular_id']
+    });
+
+    const servicoById = servicosPeriodo.reduce((acc, servico) => {
+      acc[servico.id] = servico;
+      return acc;
+    }, {});
+
+    const servicoIds = servicosPeriodo.map((servico) => servico.id);
+    const servicosMontadoresPeriodo = servicoIds.length > 0
+      ? await models.ServicoMontador.findAll({
+          where: {
+            servico_id: { [Op.in]: servicoIds }
+          },
+          attributes: ['id', 'servico_id', 'usuario_id', 'valor_atribuido', 'papel', 'percentual_divisao']
+        })
+      : [];
+
+    const servicoProdutosPeriodo = servicoIds.length > 0
+      ? await models.ServicoProduto.findAll({
+          where: {
+            servico_id: { [Op.in]: servicoIds }
+          },
+          attributes: ['servico_id', 'quantidade', 'valor_unitario', 'valor_total']
+        })
+      : [];
+
+    const totalProdutosPorServico = servicoProdutosPeriodo.reduce((acc, sp) => {
+      const totalItem = sp.valor_total != null
+        ? Number(sp.valor_total)
+        : Number(sp.quantidade || 0) * Number(sp.valor_unitario || 0);
+      acc[sp.servico_id] = (acc[sp.servico_id] || 0) + (Number.isNaN(totalItem) ? 0 : totalItem);
+      return acc;
+    }, {});
+
+    const montadoresPorServico = servicosMontadoresPeriodo.reduce((acc, sm) => {
+      if (!sm.usuario_id) return acc;
+      acc[sm.servico_id] = (acc[sm.servico_id] || 0) + 1;
+      return acc;
+    }, {});
+
+    const getValorCheio = (servico) => {
+      const valorTotal = Number(servico.valor_total || 0);
+      if (valorTotal > 0) return valorTotal;
+
+      const valorRepasse = Number(servico.valor_repasse_montagem || 0);
+      if (valorRepasse > 0) return valorRepasse;
+
+      const totalProdutos = Number(totalProdutosPorServico[servico.id] || 0);
+      return totalProdutos;
+    };
+
+    const calcularValorAtribuido = (sm) => {
+      const servico = servicoById[sm.servico_id];
+      if (!servico) return 0;
+
+      const valorCheio = getValorCheio(servico);
+      const loja = servico.tipo_cliente === 'loja' ? servico.Loja : null;
+      const valorRepasse = loja?.usa_porcentagem && loja?.porcentagem_repasse != null && Number(loja.porcentagem_repasse) > 0
+        ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
+        : valorCheio;
+
+      if (sm.valor_atribuido != null && Number(sm.valor_atribuido) > 0) {
+        return Number(sm.valor_atribuido);
+      }
+
+      if (sm.percentual_divisao != null && Number(sm.percentual_divisao) > 0) {
+        return (valorRepasse * Number(sm.percentual_divisao)) / 100;
+      }
+
+      const totalMontadores = montadoresPorServico[sm.servico_id] || 1;
+      return valorRepasse / totalMontadores;
+    };
+
     // Para cada montador, calcular seus valores
     for (const montador of montadores) {
-      // Buscar todos os serviços do montador no período
-      const servicosMontador = await models.ServicoMontador.findAll({
-        where: { usuario_id: montador.id },
-        include: [{
-          model: models.Servico,
-          where: {
-            data_servico: {
-              [Op.between]: [dataInicio, dataFim]
-            },
-            status: 'concluido'
-          },
-          required: true,
-          attributes: ['id', 'codigo_servico', 'data_servico']
-        }],
-        attributes: ['id', 'servico_id', 'valor_atribuido', 'papel', 'percentual_divisao']
-      });
-      
-      // Calcular total de montagens
+      const servicosMontador = servicosMontadoresPeriodo.filter((sm) => sm.usuario_id === montador.id);
+
       const valorMontagens = servicosMontador.reduce(
-        (sum, sm) => sum + parseFloat(sm.valor_atribuido || 0),
+        (sum, sm) => sum + parseFloat(calcularValorAtribuido(sm) || 0),
         0
       );
       
@@ -96,14 +165,17 @@ router.get('/', async (req, res) => {
       }
       
       // Montar detalhes dos serviços
-      const detalhes = servicosMontador.map(sm => ({
-        servico_id: sm.servico_id,
-        codigo_servico: sm.Servico?.codigo_servico,
-        data_servico: sm.Servico?.data_servico,
-        valor_atribuido: parseFloat(sm.valor_atribuido),
-        papel: sm.papel,
-        percentual_divisao: parseFloat(sm.percentual_divisao || 0)
-      }));
+      const detalhes = servicosMontador.map(sm => {
+        const servico = servicoById[sm.servico_id];
+        return {
+          servico_id: sm.servico_id,
+          codigo_servico: servico?.codigo_servico,
+          data_servico: servico?.data_servico,
+          valor_atribuido: parseFloat(calcularValorAtribuido(sm) || 0),
+          papel: sm.papel,
+          percentual_divisao: parseFloat(sm.percentual_divisao || 0)
+        };
+      });
       
       resultado.montadores.push({
         usuario_id: montador.id,

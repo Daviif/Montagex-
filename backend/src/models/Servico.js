@@ -5,6 +5,9 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
+    codigo_servico: {
+      type: DataTypes.STRING(50)
+    },
     data_servico: {
       type: DataTypes.DATEONLY,
       allowNull: false

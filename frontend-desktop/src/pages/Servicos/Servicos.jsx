@@ -24,8 +24,8 @@ const Servicos = () => {
   const { data: particular, loading: particularLoading } = useApi('/clientes_particulares');
   const { data: usuarios, loading: usuariosLoading } = useApi('/usuarios');
   const { data: produtos, loading: produtosLoading } = useApi('/produtos');
-  const { data: servicoProdutos, loading: servicoProdutosLoading } = useApi('/servico_produtos');
-  const { data: servicoMontadores, loading: servicoMontadoresLoading } = useApi('/servico_montadores');
+  const { data: servicoProdutos, loading: servicoProdutosLoading, refetch: refetchServicoProdutos } = useApi('/servico_produtos');
+  const { data: servicoMontadores, loading: servicoMontadoresLoading, refetch: refetchServicoMontadores } = useApi('/servico_montadores');
 
   // UI State
   const [statusFilter, setStatusFilter] = useState('todos');
@@ -303,6 +303,17 @@ const Servicos = () => {
     if (!isAdmin) return;
 
     try {
+      const totalProdutos = tabProdutos.reduce(
+        (acc, produto) => acc + (Number(produto.quantidade || 0) * Number(produto.valor_unitario || 0)),
+        0
+      );
+      const lojaSelecionada = formData.tipo_cliente === 'loja' ? lojasById[formData.loja_id] : null;
+      const repasseBase = lojaSelecionada?.usa_porcentagem
+        && lojaSelecionada?.porcentagem_repasse != null
+        && Number(lojaSelecionada.porcentagem_repasse) > 0
+        ? (totalProdutos * Number(lojaSelecionada.porcentagem_repasse)) / 100
+        : totalProdutos;
+
           const dataToSend = {
             data_servico: formData.data_servico,
             tipo_cliente: formData.tipo_cliente,
@@ -311,6 +322,8 @@ const Servicos = () => {
             endereco_execucao: buildEnderecoExecucao(formData),
             latitude: formData.latitude || null,
             longitude: formData.longitude || null,
+        valor_total: Number(totalProdutos.toFixed(2)),
+        valor_repasse_montagem: Number(repasseBase.toFixed(2)),
             prioridade: formData.prioridade || 0,
             janela_inicio: formData.janela_inicio || null,
             janela_fim: formData.janela_fim || null,
@@ -318,14 +331,72 @@ const Servicos = () => {
             status: formData.status
           };
 
-      if (editingId) {
-        await api.put(`/servicos/${editingId}`, dataToSend);
-      } else {
-        await api.post('/servicos', dataToSend);
+      const servicoResponse = editingId
+        ? await api.put(`/servicos/${editingId}`, dataToSend)
+        : await api.post('/servicos', dataToSend);
+
+      const servicoId = editingId || servicoResponse.data?.id;
+
+      if (servicoId) {
+        const existingProdutos = await api.get(`/servico_produtos?servico_id=${servicoId}`);
+        await Promise.all(
+          (existingProdutos.data || []).map((item) => api.delete(`/servico_produtos/${item.id}`))
+        );
+
+        const produtosPayload = tabProdutos
+          .filter((produto) => produto.produto_id)
+          .map((produto) => ({
+            servico_id: servicoId,
+            produto_id: produto.produto_id,
+            quantidade: Number(produto.quantidade || 1),
+            valor_unitario: Number(produto.valor_unitario || 0),
+            valor_total: Number(produto.quantidade || 1) * Number(produto.valor_unitario || 0)
+          }));
+
+        if (produtosPayload.length > 0) {
+          await Promise.all(produtosPayload.map((payload) => api.post('/servico_produtos', payload)));
+        }
+
+        const existingMontadores = await api.get(`/servico_montadores?servico_id=${servicoId}`);
+        await Promise.all(
+          (existingMontadores.data || []).map((item) => api.delete(`/servico_montadores/${item.id}`))
+        );
+
+        const montadoresValidos = tabMontadores.filter((montador) => montador.usuario_id);
+        const totalPercentual = montadoresValidos.reduce(
+          (acc, montador) => acc + Number(montador.percentual_divisao || 0),
+          0
+        );
+        const valorPorMontador = montadoresValidos.length > 0
+          ? Number((repasseBase / montadoresValidos.length).toFixed(2))
+          : 0;
+
+        const montadoresPayload = montadoresValidos.map((montador) => {
+          const percentual = Number(montador.percentual_divisao || 0);
+          const valorCalculado = percentual > 0
+            ? (repasseBase * percentual) / 100
+            : valorPorMontador;
+          const valorManual = Number(montador.valor_atribuido || 0);
+          const valorFinal = valorManual > 0 ? valorManual : valorCalculado;
+
+          return {
+            servico_id: servicoId,
+            usuario_id: montador.usuario_id,
+            valor_atribuido: Number(valorFinal.toFixed(2)),
+            papel: montador.papel || 'principal',
+            percentual_divisao: percentual > 0 ? percentual : null
+          };
+        });
+
+        if (montadoresPayload.length > 0) {
+          await Promise.all(montadoresPayload.map((payload) => api.post('/servico_montadores', payload)));
+        }
       }
 
       setShowModal(false);
       refetchServicos();
+      refetchServicoProdutos();
+      refetchServicoMontadores();
     } catch (err) {
       alert('Erro ao salvar serviço: ' + err.message);
     }
@@ -815,12 +886,12 @@ const Servicos = () => {
                                 </td>
                                 <td>
                                   <span className="servicos__produto-valor">
-                                    R$ {produto.valor_unitario.toFixed(2)}
+                                    R$ {Number(produto.valor_unitario || 0).toFixed(2)}
                                   </span>
                                 </td>
                                 <td>
                                   <span className="servicos__produto-total">
-                                    R$ {(produto.quantidade * produto.valor_unitario).toFixed(2)}
+                                    R$ {(Number(produto.quantidade || 0) * Number(produto.valor_unitario || 0)).toFixed(2)}
                                   </span>
                                 </td>
                                 <td>

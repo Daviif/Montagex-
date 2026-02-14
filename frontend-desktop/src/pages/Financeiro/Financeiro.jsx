@@ -4,7 +4,9 @@ import {
   MdAttachMoney,
   MdPayments,
   MdReceiptLong,
-  MdSearch
+  MdSearch,
+  MdExpandMore,
+  MdChevronRight
 } from 'react-icons/md'
 import Card from '../../components/Card/Card'
 import { useApi } from '../../hooks/useApi'
@@ -16,6 +18,7 @@ const Financeiro = () => {
   const [activeTab, setActiveTab] = useState('salarios')
   const [searchTerm, setSearchTerm] = useState('')
   const [isDespesaModalOpen, setIsDespesaModalOpen] = useState(false)
+  const [expandedMontadores, setExpandedMontadores] = useState(() => new Set())
   const [despesaForm, setDespesaForm] = useState({
     categoria: 'Outros',
     valor: '',
@@ -34,6 +37,9 @@ const Financeiro = () => {
   } = useApi('/despesas', 'GET', [])
   const { data: usuariosData } = useApi('/usuarios', 'GET', [])
   const { data: servicosData } = useApi('/servicos', 'GET', [])
+  const { data: servicoMontadoresData } = useApi('/servico_montadores', 'GET', [])
+  const { data: lojasData } = useApi('/lojas', 'GET', [])
+  const { data: particularesData } = useApi('/clientes_particulares', 'GET', [])
 
   const { formatDate } = useDate()
   const formatCurrency = useCurrency()
@@ -60,11 +66,58 @@ const Financeiro = () => {
     }, {})
   }, [servicosData])
 
+  const lojasMap = useMemo(() => {
+    return (lojasData || []).reduce((acc, loja) => {
+      acc[loja.id] = loja
+      return acc
+    }, {})
+  }, [lojasData])
+
+  const particularesMap = useMemo(() => {
+    return (particularesData || []).reduce((acc, cliente) => {
+      acc[cliente.id] = cliente
+      return acc
+    }, {})
+  }, [particularesData])
+
   const periodoLabel = useMemo(() => {
     if (salariosData?.periodo?.mes && salariosData?.periodo?.ano) {
       return `${salariosData.periodo.mes} ${salariosData.periodo.ano}`
     }
     return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date())
+  }, [salariosData])
+
+  const periodoInfo = useMemo(() => {
+    if (salariosData?.periodo?.inicio && salariosData?.periodo?.fim) {
+      return {
+        inicio: new Date(salariosData.periodo.inicio),
+        fim: new Date(salariosData.periodo.fim)
+      }
+    }
+
+    if (salariosData?.periodo?.mes && salariosData?.periodo?.ano) {
+      const monthMap = {
+        Jan: 0,
+        Fev: 1,
+        Mar: 2,
+        Abr: 3,
+        Mai: 4,
+        Jun: 5,
+        Jul: 6,
+        Ago: 7,
+        Set: 8,
+        Out: 9,
+        Nov: 10,
+        Dez: 11
+      }
+
+      return {
+        inicio: new Date(Number(salariosData.periodo.ano), monthMap[salariosData.periodo.mes], 1),
+        fim: new Date(Number(salariosData.periodo.ano), monthMap[salariosData.periodo.mes] + 1, 0)
+      }
+    }
+
+    return null
   }, [salariosData])
 
   const searchNormalized = searchTerm.trim().toLowerCase()
@@ -77,6 +130,133 @@ const Financeiro = () => {
       montador.nome?.toLowerCase().includes(searchNormalized)
     )
   }, [salariosData, searchNormalized])
+
+  const salarioDetalhado = useMemo(() => {
+    const montadoresMap = new Map()
+    const montadoresPorServico = new Map()
+    const hasServicoMontadores = Array.isArray(servicoMontadoresData) && servicoMontadoresData.length > 0
+    const servicosList = Array.isArray(servicosData) ? servicosData : []
+    const servicosConcluidos = servicosList.filter((servico) => {
+      if (servico.status !== 'concluido') return false
+      if (!periodoInfo) return true
+      const data = new Date(servico.data_servico)
+      return data >= periodoInfo.inicio && data <= periodoInfo.fim
+    })
+
+    servicosConcluidos.forEach((servico) => {
+      const count = (servicoMontadoresData || []).filter((sm) => sm.servico_id === servico.id && sm.usuario_id).length
+      montadoresPorServico.set(servico.id, count || 1)
+    })
+
+    const servicosConcluidosMap = servicosConcluidos.reduce((acc, servico) => {
+      acc[servico.id] = servico
+      return acc
+    }, {})
+
+    const salarySource = hasServicoMontadores
+      ? (servicoMontadoresData || []).filter((sm) => sm.usuario_id && servicosConcluidosMap[sm.servico_id])
+      : (salariosData?.montadores || []).flatMap((montador) =>
+          (montador.detalhes || []).map((detalhe) => ({
+            ...detalhe,
+            usuario_id: montador.usuario_id,
+            servico_id: detalhe.servico_id
+          }))
+        )
+
+    const entries = salarySource.map((sm) => {
+      const servico = servicosConcluidosMap[sm.servico_id] || servicosMap[sm.servico_id]
+      const loja = servico?.tipo_cliente === 'loja' ? lojasMap[servico.loja_id] : null
+      const valorCheio = Number(servico?.valor_total || servico?.valor_repasse_montagem || sm.valor_atribuido || 0)
+      const valorCalculadoCliente = loja?.usa_porcentagem
+        && loja?.porcentagem_repasse != null
+        && Number(loja.porcentagem_repasse) > 0
+        ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
+        : valorCheio
+      const totalMontadores = montadoresPorServico.get(sm.servico_id) || 1
+      const valorMontador = sm.valor_atribuido != null
+        ? Number(sm.valor_atribuido)
+        : sm.percentual_divisao
+          ? (valorCalculadoCliente * Number(sm.percentual_divisao)) / 100
+          : valorCalculadoCliente / totalMontadores
+
+      return {
+        montadorId: sm.usuario_id,
+        servicoId: sm.servico_id,
+        data: servico?.data_servico || sm.data_servico || sm.data,
+        clienteLabel: servico?.tipo_cliente === 'loja'
+          ? lojasMap[servico.loja_id]?.nome || lojasMap[servico.loja_id]?.nome_fantasia || 'Loja'
+          : servico
+            ? (particularesMap[servico.cliente_particular_id]?.nome || 'Particular')
+            : 'Cliente',
+        valorCheio,
+        valorCalculadoCliente,
+        valorMontador
+      }
+    })
+
+    entries.forEach((entry) => {
+      if (!montadoresMap.has(entry.montadorId)) {
+        montadoresMap.set(entry.montadorId, {
+          montadorId: entry.montadorId,
+          nome: usuariosMap[entry.montadorId]?.nome || 'Montador',
+          itens: [],
+          totalCheio: 0,
+          totalCalculado: 0,
+          totalMontador: 0
+        })
+      }
+
+      const montador = montadoresMap.get(entry.montadorId)
+      montador.itens.push(entry)
+      montador.totalCheio += entry.valorCheio
+      montador.totalCalculado += entry.valorCalculadoCliente
+      montador.totalMontador += entry.valorMontador
+    })
+
+    const montadores = Array.from(montadoresMap.values())
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+
+    const uniqueServicoIds = new Set(entries.map((entry) => entry.servicoId))
+    const totalCheio = servicosConcluidos.length > 0
+      ? servicosConcluidos.reduce((acc, servico) => {
+          return acc + Number(servico.valor_total || servico.valor_repasse_montagem || 0)
+        }, 0)
+      : Array.from(uniqueServicoIds).reduce((acc, servicoId) => {
+          const servico = servicosMap[servicoId]
+          return acc + Number(servico?.valor_total || servico?.valor_repasse_montagem || 0)
+        }, 0)
+
+    const totalCalculado = servicosConcluidos.length > 0
+      ? servicosConcluidos.reduce((acc, servico) => {
+          const loja = servico.tipo_cliente === 'loja' ? lojasMap[servico.loja_id] : null
+          const valorCheio = Number(servico.valor_total || servico.valor_repasse_montagem || 0)
+          const valorCalculadoCliente = loja?.usa_porcentagem
+            && loja?.porcentagem_repasse != null
+            && Number(loja.porcentagem_repasse) > 0
+            ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
+            : valorCheio
+          return acc + valorCalculadoCliente
+        }, 0)
+      : Array.from(uniqueServicoIds).reduce((acc, servicoId) => {
+          const servico = servicosMap[servicoId]
+          if (!servico) return acc
+          const loja = servico.tipo_cliente === 'loja' ? lojasMap[servico.loja_id] : null
+          const valorCheio = Number(servico.valor_total || servico.valor_repasse_montagem || 0)
+          const valorCalculadoCliente = loja?.usa_porcentagem && loja?.porcentagem_repasse != null
+            ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
+            : valorCheio
+          return acc + valorCalculadoCliente
+        }, 0)
+
+    const totalMontadores = montadores.reduce((acc, montador) => acc + montador.totalMontador, 0)
+
+    return {
+      montadores,
+      totalCheio,
+      totalCalculado,
+      totalMontadores
+    }
+  }, [servicosData, servicoMontadoresData, lojasMap, particularesMap, usuariosMap, periodoInfo, salariosData, servicosMap])
 
   const recebimentosList = useMemo(() => {
     const list = Array.isArray(recebimentosData) ? recebimentosData : []
@@ -267,32 +447,83 @@ const Financeiro = () => {
           <div className="financeiro__summary">
             <span className="financeiro__summary-label">Total a pagar</span>
             <strong className="financeiro__summary-value">{formatCurrency(totalSalarios)}</strong>
+            <span className="financeiro__summary-sub">
+              Cheio: {formatCurrency(salarioDetalhado.totalCheio || 0)} · Calculado: {formatCurrency(salarioDetalhado.totalCalculado || 0)}
+            </span>
           </div>
 
-          {salariosList.length === 0 ? (
+          {salarioDetalhado.montadores.length === 0 ? (
             <div className="financeiro__empty">Nenhum serviço concluído este mês</div>
           ) : (
-            <div className="financeiro__table-wrapper">
-              <table className="financeiro__table">
-                <thead>
-                  <tr>
-                    <th>Montador</th>
-                    <th>Serviços</th>
-                    <th>Montagens</th>
-                    <th>Salário</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {salariosList.map((montador) => (
-                    <tr key={montador.usuario_id}>
-                      <td>{montador.nome}</td>
-                      <td>{montador.servicos_realizados}</td>
-                      <td>{formatCurrency(montador.valor_montagens)}</td>
-                      <td>{formatCurrency(montador.salario_calculado)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="financeiro__accordion">
+              {salarioDetalhado.montadores.map((montador) => {
+                const isExpanded = expandedMontadores.has(montador.montadorId)
+                return (
+                  <div key={montador.montadorId} className="financeiro__accordion-item">
+                    <button
+                      type="button"
+                      className="financeiro__accordion-header"
+                      onClick={() => {
+                        const next = new Set(expandedMontadores)
+                        if (next.has(montador.montadorId)) {
+                          next.delete(montador.montadorId)
+                        } else {
+                          next.add(montador.montadorId)
+                        }
+                        setExpandedMontadores(next)
+                      }}
+                    >
+                      <span className="financeiro__accordion-title">
+                        {isExpanded ? <MdExpandMore /> : <MdChevronRight />}
+                        {montador.nome}
+                      </span>
+                      <span className="financeiro__accordion-value">
+                        {formatCurrency(montador.totalMontador)}
+                      </span>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="financeiro__accordion-body">
+                        <div className="financeiro__table-wrapper">
+                          <table className="financeiro__table">
+                            <thead>
+                              <tr>
+                                <th>Data</th>
+                                <th>Cliente</th>
+                                <th>Valor Total</th>
+                                <th>Valor calculado</th>
+                                <th>Valor montador</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {montador.itens.map((item) => (
+                                <tr key={item.servicoId}>
+                                  <td>{formatDate(item.data)}</td>
+                                  <td>{item.clienteLabel}</td>
+                                  <td>{formatCurrency(item.valorCheio)}</td>
+                                  <td>{formatCurrency(item.valorCalculadoCliente)}</td>
+                                  <td>{formatCurrency(item.valorMontador)}</td>
+                                </tr>
+                              ))}
+                              <tr className="financeiro__table-total">
+                                <td colSpan={4}>Total salário do montador</td>
+                                <td>{formatCurrency(montador.totalMontador)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              <div className="financeiro__total-footer">
+                <span>Total a pagar</span>
+                <span className="financeiro__total-values">
+                  Total: {formatCurrency(salarioDetalhado.totalCheio || 0)} · Calculado: {formatCurrency(salarioDetalhado.totalCalculado || 0)}
+                </span>
+              </div>
             </div>
           )}
         </Card>
