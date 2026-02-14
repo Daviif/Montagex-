@@ -287,7 +287,7 @@ Cadastrar loja
   "razao_social": "Móveis Alfa Ltda",
   "cnpj": "12.345.678/0001-90",
   "telefone": "(11) 98765-4321",
-  "email": "contato@moveisalfa.com",
+  "email": "contato@movéisalfa.com",
   "endereco": "Rua Principal, 100",
   "cidade": "São Paulo",
   "estado": "SP",

@@ -116,7 +116,7 @@ const Produtos = () => {
     event.preventDefault()
 
     if (!produtoForm.nome.trim()) {
-      setActionError('Informe o nome do movel.')
+      setActionError('Informe o nome do móvel.')
       return
     }
 
@@ -179,7 +179,7 @@ const Produtos = () => {
         <div>
           <h1 className="produtos__title">Produtos</h1>
           <p className="produtos__subtitle">
-            Cadastre moveis por loja para calcular repasse automaticamente
+            Cadastre movéis por loja para calcular repasse automaticamente
           </p>
         </div>
         <div className="produtos__actions">
@@ -190,7 +190,7 @@ const Produtos = () => {
             disabled={!isAdmin}
             title={isAdmin ? '' : 'Apenas administradores podem cadastrar'}
           >
-            <MdAdd /> Novo movel
+            <MdAdd /> Novo móvel
           </button>
         </div>
       </div>
@@ -205,8 +205,8 @@ const Produtos = () => {
 
       {!isLoading && !errorMessage && (
         <Card
-          title="Lista de moveis"
-          subtitle="Mesmo movel pode existir em lojas diferentes"
+          title="Lista de movéis"
+          subtitle="Mesmo móvel pode existir em lojas diferentes"
           extra={(
             <div className="produtos__filters">
               <div className="produtos__search">
@@ -214,7 +214,7 @@ const Produtos = () => {
                 <input
                   type="text"
                   className="produtos__search-input"
-                  placeholder="Buscar movel..."
+                  placeholder="Buscar móvel..."
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                 />
@@ -238,7 +238,7 @@ const Produtos = () => {
             <table className="produtos__table">
               <thead>
                 <tr>
-                  <th>Movel</th>
+                  <th>móvel</th>
                   <th>Loja</th>
                   <th>Valor base</th>
                   <th>Tempo (min)</th>
@@ -252,7 +252,16 @@ const Produtos = () => {
                     <td>
                       <div className="produtos__name">{produto.nome}</div>
                     </td>
-                    <td>{lojasById[produto.loja_id]?.nome || 'Loja nao encontrada'}</td>
+                    <td>
+                      {produto.loja_id
+                        ? (
+                          lojasById[produto.loja_id]?.nome
+                          || lojasById[produto.loja_id]?.nome_fantasia
+                          || lojasById[produto.loja_id]?.razao_social
+                          || 'Loja nao encontrada'
+                        )
+                        : 'Sem loja'}
+                    </td>
                     <td>
                       {produto.valor_base !== null && produto.valor_base !== undefined
                         ? `R$ ${Number(produto.valor_base).toFixed(2)}`
@@ -277,7 +286,7 @@ const Produtos = () => {
                           className="produtos__icon-button"
                           onClick={() => openModal(produto)}
                           disabled={!isAdmin}
-                          title={isAdmin ? 'Editar movel' : 'Apenas administradores'}
+                          title={isAdmin ? 'Editar móvel' : 'Apenas administradores'}
                         >
                           <MdEdit />
                         </button>
@@ -286,7 +295,7 @@ const Produtos = () => {
                           className="produtos__icon-button produtos__icon-button--danger"
                           onClick={() => openDeleteModal(produto)}
                           disabled={!isAdmin}
-                          title={isAdmin ? 'Excluir movel' : 'Apenas administradores'}
+                          title={isAdmin ? 'Excluir móvel' : 'Apenas administradores'}
                         >
                           <MdDelete />
                         </button>
@@ -297,7 +306,7 @@ const Produtos = () => {
               </tbody>
             </table>
             {filteredProdutos.length === 0 && (
-              <div className="produtos__empty">Nenhum movel encontrado.</div>
+              <div className="produtos__empty">Nenhum móvel encontrado.</div>
             )}
           </div>
         </Card>
@@ -307,7 +316,7 @@ const Produtos = () => {
         <div className="produtos__modal-backdrop">
           <div className="produtos__modal">
             <div className="produtos__modal-header">
-              <h3>{editingProduto ? 'Editar movel' : 'Novo movel'}</h3>
+              <h3>{editingProduto ? 'Editar móvel' : 'Novo móvel'}</h3>
               <button
                 type="button"
                 className="produtos__icon-button"
@@ -337,7 +346,7 @@ const Produtos = () => {
                 </select>
               </label>
               <label className="produtos__label">
-                Nome do movel
+                Nome do móvel
                 <input
                   type="text"
                   className="produtos__input"
@@ -420,7 +429,7 @@ const Produtos = () => {
         <div className="produtos__modal-backdrop">
           <div className="produtos__modal produtos__modal--small">
             <div className="produtos__modal-header">
-              <h3>Excluir movel</h3>
+              <h3>Excluir móvel</h3>
               <button
                 type="button"
                 className="produtos__icon-button"

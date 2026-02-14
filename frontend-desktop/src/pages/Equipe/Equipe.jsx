@@ -466,7 +466,7 @@ const Equipe = () => {
             <div className="equipe__tab-panel">
               <Card
                 title="Montadores"
-                subtitle="Montadores podem receber servicos mesmo sem equipe"
+                subtitle="Montadores podem receber serviços mesmo sem equipe"
                 extra={(
                   <div className="equipe__filters">
                     <div className="equipe__search">

@@ -29,7 +29,7 @@ const StatCard = ({
         </div>
         {Icon && (
           <div className="stat-card-icon" style={{ backgroundColor: iconBg }}>
-            <Icon />
+            {typeof Icon === 'string' ? <span>{Icon}</span> : <Icon />}
           </div>
         )}
       </div>
