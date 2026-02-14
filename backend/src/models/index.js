@@ -59,6 +59,9 @@ Servico.hasMany(PagamentoFuncionario, { foreignKey: 'servico_id' });
 PagamentoFuncionario.belongsTo(Usuario, { foreignKey: 'usuario_id' });
 PagamentoFuncionario.belongsTo(Servico, { foreignKey: 'servico_id' });
 
+Usuario.hasMany(Despesa, { foreignKey: 'responsavel_id' });
+Despesa.belongsTo(Usuario, { foreignKey: 'responsavel_id', as: 'responsavel' });
+
 Servico.hasMany(Despesa, { foreignKey: 'servico_id' });
 Rota.hasMany(Despesa, { foreignKey: 'rota_id' });
 Despesa.belongsTo(Servico, { foreignKey: 'servico_id' });

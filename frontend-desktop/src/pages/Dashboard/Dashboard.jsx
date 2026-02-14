@@ -16,25 +16,7 @@ import api from '../../services/api'
 import './Dashboard.css'
 
 const Dashboard = () => {
-  const [dashboardData, setDashboardData] = useState({
-    financeiro: {
-      total_recebido: 0,
-      total_despesas: 0,
-      lucro: 0,
-      pendente: 0,
-      margem_lucro: 0,
-      variacao_mes: 12
-    },
-    servicos: {
-      realizados: 0,
-      agendados: 0,
-      taxa_conclusao: 0
-    },
-    equipe: {
-      montadores_ativos: 4,
-      total_montadores: 4
-    }
-  })
+  const [dashboardData, setDashboardData] = useState(null)
 
   const [loading, setLoading] = useState(true)
 
@@ -44,29 +26,10 @@ const Dashboard = () => {
 
   const loadDashboardData = async () => {
     try {
-      // const response = await api.get('/dashboard')
-      // setDashboardData(response.data.data)
-      
-      // Dados mockados para demonstração
-      setDashboardData({
-        financeiro: {
-          total_recebido: 0,
-          total_despesas: 0,
-          lucro: 0,
-          pendente: 0,
-          margem_lucro: 0,
-          variacao_mes: 12
-        },
-        servicos: {
-          realizados: 0,
-          agendados: 0,
-          taxa_conclusao: 0
-        },
-        equipe: {
-          montadores_ativos: 4,
-          total_montadores: 4
-        }
-      })
+      const response = await api.get('/dashboard')
+      if (response.data?.data) {
+        setDashboardData(response.data.data)
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
     } finally {
@@ -81,34 +44,28 @@ const Dashboard = () => {
     }).format(value)
   }
 
-  // Dados para gráfico de receitas
-  const receitasData = [
-    { name: 'Lojas', value: 0 },
-    { name: 'Particulares', value: 0 }
-  ]
-
-  // Dados para gráfico de despesas
-  const despesasData = [
-    { name: 'Jan', despesas: 0 },
-    { name: 'Fev', despesas: 0 },
-    { name: 'Mar', despesas: 0 },
-    { name: 'Abr', despesas: 0 },
-    { name: 'Mai', despesas: 0 },
-    { name: 'Jun', despesas: 0 }
-  ]
-
-  const COLORS = ['#FF6B35', '#3498DB', '#27AE60', '#F39C12']
-
-  if (loading) {
+  if (loading || !dashboardData) {
     return <div className="loading">Carregando...</div>
   }
+
+  // Dados para gráfico de receitas
+  const receitasData = dashboardData.graficos?.receitas_por_tipo || []
+
+  // Dados para gráfico de despesas
+  const despesasData = dashboardData.graficos?.despesas_mensais || []
+
+  const periodoLabel = dashboardData.periodo?.mes
+    ? `${dashboardData.periodo.mes} de ${dashboardData.periodo.ano}`
+    : new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date())
+
+  const COLORS = ['#FF6B35', '#3498DB', '#27AE60', '#F39C12']
 
   return (
     <div className="dashboard">
       <div className="dashboard-header">
         <div>
           <h1 className="dashboard-title">Dashboard</h1>
-          <p className="dashboard-subtitle">Visão geral de fevereiro de 2026</p>
+          <p className="dashboard-subtitle">Visão geral de {periodoLabel}</p>
         </div>
       </div>
 

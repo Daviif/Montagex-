@@ -28,7 +28,8 @@ const Servicos = () => {
   const { data: servicoMontadores, loading: servicoMontadoresLoading } = useApi('/servico_montadores');
 
   // UI State
-  const [activeTab, setActiveTab] = useState('agendado');
+  const [statusFilter, setStatusFilter] = useState('todos');
+  const [clienteFilter, setClienteFilter] = useState('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -42,7 +43,12 @@ const Servicos = () => {
     tipo_cliente: 'loja',
     loja_id: '',
     cliente_particular_id: '',
-    endereco_execucao: '',
+    endereco_rua: '',
+    endereco_numero: '',
+    endereco_bairro: '',
+    endereco_cidade: '',
+    endereco_estado: '',
+    endereco_cep: '',
     latitude: '',
     longitude: '',
     prioridade: 0,
@@ -97,13 +103,14 @@ const Servicos = () => {
   const filteredServicos = useMemo(() => {
     if (!servicos) return [];
     return servicos.filter(s => {
-      const matchStatus = s.status === activeTab;
+      const matchStatus = statusFilter === 'todos' || s.status === statusFilter;
+      const matchCliente = clienteFilter === 'todos' || s.tipo_cliente === clienteFilter;
       const matchSearch = searchTerm === '' || 
         s.endereco_execucao.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.observacoes?.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchStatus && matchSearch;
+      return matchStatus && matchCliente && matchSearch;
     });
-  }, [servicos, activeTab, searchTerm]);
+  }, [servicos, statusFilter, clienteFilter, searchTerm]);
 
   // Produtos da loja filtrados (ou todos se particular)
   const produtosFilterados = useMemo(() => {
@@ -194,12 +201,18 @@ const Servicos = () => {
 
   // Open edit modal
   const handleEdit = useCallback((servico) => {
+    const enderecoParts = (servico.endereco_execucao || '').split(',').map(part => part.trim());
     setFormData({
       data_servico: servico.data_servico || '',
       tipo_cliente: servico.tipo_cliente || 'loja',
       loja_id: servico.loja_id || '',
       cliente_particular_id: servico.cliente_particular_id || '',
-      endereco_execucao: servico.endereco_execucao || '',
+      endereco_rua: enderecoParts[0] || servico.endereco_execucao || '',
+      endereco_numero: enderecoParts[1] || '',
+      endereco_bairro: enderecoParts[2] || '',
+      endereco_cidade: enderecoParts[3] || '',
+      endereco_estado: enderecoParts[4] || '',
+      endereco_cep: enderecoParts[5] || '',
       latitude: servico.latitude || '',
       longitude: servico.longitude || '',
       prioridade: servico.prioridade || 0,
@@ -221,7 +234,12 @@ const Servicos = () => {
       tipo_cliente: 'loja',
       loja_id: '',
       cliente_particular_id: '',
-      endereco_execucao: '',
+      endereco_rua: '',
+      endereco_numero: '',
+      endereco_bairro: '',
+      endereco_cidade: '',
+      endereco_estado: '',
+      endereco_cep: '',
       latitude: '',
       longitude: '',
       prioridade: 0,
@@ -232,7 +250,6 @@ const Servicos = () => {
     });
     setTabProdutos([]);
     setTabMontadores([]);
-    setActiveModalTab('dados');
     setEditingId(null);
     setShowModal(true);
   }, []);
@@ -260,19 +277,46 @@ const Servicos = () => {
     }
   }, []);
 
+  const buildEnderecoExecucao = useCallback((data) => {
+    const parts = [
+      data.endereco_rua,
+      data.endereco_numero,
+      data.endereco_bairro,
+      data.endereco_cidade,
+      data.endereco_estado,
+      data.endereco_cep
+    ].filter(Boolean);
+
+    return parts.join(', ');
+  }, []);
+
+  const handleEnderecoBlur = useCallback((field, value) => {
+    geocodeAddress(buildEnderecoExecucao({
+      ...formData,
+      [field]: value
+    }));
+  }, [buildEnderecoExecucao, formData, geocodeAddress]);
+
   // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin) return;
 
     try {
-      const dataToSend = {
-        ...formData,
-        loja_id: formData.tipo_cliente === 'loja' ? formData.loja_id || null : null,
-        cliente_particular_id: formData.tipo_cliente === 'particular' ? formData.cliente_particular_id || null : null,
-        janela_inicio: formData.janela_inicio || null,
-        janela_fim: formData.janela_fim || null
-      };
+          const dataToSend = {
+            data_servico: formData.data_servico,
+            tipo_cliente: formData.tipo_cliente,
+            loja_id: formData.tipo_cliente === 'loja' ? formData.loja_id || null : null,
+            cliente_particular_id: formData.tipo_cliente === 'particular' ? formData.cliente_particular_id || null : null,
+            endereco_execucao: buildEnderecoExecucao(formData),
+            latitude: formData.latitude || null,
+            longitude: formData.longitude || null,
+            prioridade: formData.prioridade || 0,
+            janela_inicio: formData.janela_inicio || null,
+            janela_fim: formData.janela_fim || null,
+            observacoes: formData.observacoes || null,
+            status: formData.status
+          };
 
       if (editingId) {
         await api.put(`/servicos/${editingId}`, dataToSend);
@@ -350,7 +394,7 @@ const Servicos = () => {
       <div className="servicos__header">
         <div>
           <h1 className="servicos__title">Serviços</h1>
-          <p className="servicos__subtitle">Gerencie serviços de montagem e instalação</p>
+          <p className="servicos__subtitle">Gerencie todos os agendamentos</p>
         </div>
         <div className="servicos__actions">
           {isAdmin && (
@@ -370,19 +414,6 @@ const Servicos = () => {
         <StatCard title="Cancelado" value={stats.cancelado} icon="❌" color="#e74c3c" />
       </div>
 
-      {/* Tabs */}
-      <div className="servicos__tabs">
-        {['agendado', 'em_rota', 'concluido', 'cancelado'].map(status => (
-          <button
-            key={status}
-            className={`servicos__tab ${activeTab === status ? 'servicos__tab--active' : ''}`}
-            onClick={() => setActiveTab(status)}
-          >
-            {status.replace(/_/g, ' ').toUpperCase()}
-          </button>
-        ))}
-      </div>
-
       {/* Card Principal */}
       <Card title="Gerenciamento de Serviços">
         {/* Toolbar */}
@@ -391,37 +422,58 @@ const Servicos = () => {
             <MdSearch className="servicos__search-icon" />
             <input
               type="text"
-              placeholder="Buscar por endereço ou observação..."
+              placeholder="Buscar por endereço..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="servicos__search-input"
             />
           </div>
+          <select
+            className="servicos__filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="todos">Todos os status</option>
+            <option value="agendado">Agendado</option>
+            <option value="em_rota">Em Rota</option>
+            <option value="concluido">Concluído</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+          <select
+            className="servicos__filter-select"
+            value={clienteFilter}
+            onChange={(e) => setClienteFilter(e.target.value)}
+          >
+            <option value="todos">Todos os clientes</option>
+            <option value="loja">Lojas</option>
+            <option value="particular">Particulares</option>
+          </select>
         </div>
 
-        {/* Table */}
-        <div className="servicos__table-wrapper">
-          <table className="servicos__table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Endereço</th>
-                <th>Produtos</th>
-                <th>Montadores</th>
-                <th>Janela</th>
-                <th>Prioridade</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredServicos.length === 0 ? (
-                <tr className="servicos__empty-row">
-                  <td colSpan="9" className="servicos__text-center">Nenhum serviço encontrado</td>
+        {filteredServicos.length === 0 ? (
+          <div className="servicos__empty-state">
+            <div className="servicos__empty-icon">📄</div>
+            <h3>Nenhum serviço encontrado</h3>
+            <p>Comece adicionando um novo serviço</p>
+          </div>
+        ) : (
+          <div className="servicos__table-wrapper">
+            <table className="servicos__table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Cliente</th>
+                  <th>Tipo</th>
+                  <th>Endereço</th>
+                  <th>Produtos</th>
+                  <th>Montadores</th>
+                  <th>Janela</th>
+                  <th>Prioridade</th>
+                  <th>Ações</th>
                 </tr>
-              ) : (
-                filteredServicos.map(servico => {
+              </thead>
+              <tbody>
+                {filteredServicos.map(servico => {
                   const clienteInfo = getClienteInfo(servico);
                   const prods = getServicoProdutos(servico.id);
                   const mts = getServicoMontadores(servico.id);
@@ -471,11 +523,11 @@ const Servicos = () => {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       {/* Modal */}
@@ -566,17 +618,77 @@ const Servicos = () => {
               </div>
 
               {/* 3. Endereço */}
-              <div className="servicos__form-group servicos__form-group--full">
-                <label htmlFor="endereco_execucao">Endereço de Execução *</label>
-                <input
-                  id="endereco_execucao"
-                  type="text"
-                  value={formData.endereco_execucao}
-                  onChange={(e) => setFormData({ ...formData, endereco_execucao: e.target.value })}
-                  onBlur={(e) => geocodeAddress(e.target.value)}
-                  placeholder="Digite o endereço (será localizado automaticamente)"
-                  required
-                />
+              <div className="servicos__form-row">
+                <div className="servicos__form-group">
+                  <label htmlFor="endereco_rua">Rua *</label>
+                  <input
+                    id="endereco_rua"
+                    type="text"
+                    value={formData.endereco_rua}
+                    onChange={(e) => setFormData({ ...formData, endereco_rua: e.target.value })}
+                    onBlur={(e) => handleEnderecoBlur('endereco_rua', e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="servicos__form-group">
+                  <label htmlFor="endereco_numero">Número *</label>
+                  <input
+                    id="endereco_numero"
+                    type="text"
+                    value={formData.endereco_numero}
+                    onChange={(e) => setFormData({ ...formData, endereco_numero: e.target.value })}
+                    onBlur={(e) => handleEnderecoBlur('endereco_numero', e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="servicos__form-row">
+                <div className="servicos__form-group">
+                  <label htmlFor="endereco_bairro">Bairro *</label>
+                  <input
+                    id="endereco_bairro"
+                    type="text"
+                    value={formData.endereco_bairro}
+                    onChange={(e) => setFormData({ ...formData, endereco_bairro: e.target.value })}
+                    onBlur={(e) => handleEnderecoBlur('endereco_bairro', e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="servicos__form-group">
+                  <label htmlFor="endereco_cidade">Cidade *</label>
+                  <input
+                    id="endereco_cidade"
+                    type="text"
+                    value={formData.endereco_cidade}
+                    onChange={(e) => setFormData({ ...formData, endereco_cidade: e.target.value })}
+                    onBlur={(e) => handleEnderecoBlur('endereco_cidade', e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="servicos__form-row">
+                <div className="servicos__form-group">
+                  <label htmlFor="endereco_estado">Estado *</label>
+                  <input
+                    id="endereco_estado"
+                    type="text"
+                    value={formData.endereco_estado}
+                    onChange={(e) => setFormData({ ...formData, endereco_estado: e.target.value })}
+                    onBlur={(e) => handleEnderecoBlur('endereco_estado', e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="servicos__form-group">
+                  <label htmlFor="endereco_cep">CEP *</label>
+                  <input
+                    id="endereco_cep"
+                    type="text"
+                    value={formData.endereco_cep}
+                    onChange={(e) => setFormData({ ...formData, endereco_cep: e.target.value })}
+                    onBlur={(e) => handleEnderecoBlur('endereco_cep', e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               {/* 4. Atribuição + Montador */}

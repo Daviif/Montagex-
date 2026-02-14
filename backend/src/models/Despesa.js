@@ -16,6 +16,9 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false
     },
+    responsavel_id: {
+      type: DataTypes.UUID
+    },
     data_despesa: {
       type: DataTypes.DATEONLY,
       allowNull: false

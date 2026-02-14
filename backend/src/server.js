@@ -5,13 +5,24 @@ const app = require('./app');
 const setupWebSocket = require('./config/websocket');
 const { initRedis } = require('./config/redis');
 const { sequelize } = require('./models');
+const seedAdmin = require('./database/seed');
 
 const port = Number(process.env.PORT) || 3000;
+
+if (!process.env.JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('JWT_SECRET é obrigatório em produção.');
+    process.exit(1);
+  }
+  console.warn('JWT_SECRET não definido. Usando valor inseguro para desenvolvimento.');
+  process.env.JWT_SECRET = 'dev-secret';
+}
 
 const startServer = async () => {
   try {
     await sequelize.authenticate();
     console.log('Banco de dados conectado com sucesso');
+    await seedAdmin();
   } catch (err) {
     console.error('Falha ao conectar no banco de dados:', err.message);
     process.exit(1);

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { models, sequelize } = require('../models');
+const { models } = require('../models');
 const { Op } = require('sequelize');
 
 /**
@@ -12,7 +12,7 @@ const { Op } = require('sequelize');
  *  - data_fim: Data final (YYYY-MM-DD)
  *  - usuario_id: Filtrar por montador específico
  */
-router.get('/salarios', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { data_inicio, data_fim, usuario_id } = req.query;
     
@@ -146,7 +146,7 @@ router.get('/salarios', async (req, res) => {
  * 
  * Retorna detalhamento completo de salário de um montador específico
  */
-router.get('/salarios/:usuario_id/detalhado', async (req, res) => {
+router.get('/:usuario_id/detalhado', async (req, res) => {
   try {
     const { usuario_id } = req.params;
     const { data_inicio, data_fim } = req.query;
@@ -164,7 +164,7 @@ router.get('/salarios/:usuario_id/detalhado', async (req, res) => {
     const response = await fetch(
       `/dashboard/salarios?usuario_id=${usuario_id}&data_inicio=${data_inicio}&data_fim=${data_fim}`
     );
-    
+
     res.json(response);
     
   } catch (error) {

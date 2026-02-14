@@ -299,9 +299,11 @@ CREATE TABLE despesas (
     categoria VARCHAR(50),
     valor NUMERIC(10,2) NOT NULL,
     data_despesa DATE NOT NULL,
+    responsavel_id UUID REFERENCES usuarios(id),
     servico_id UUID REFERENCES servicos(id) ON DELETE SET NULL,
     rota_id UUID REFERENCES rotas(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_despesas_categoria ON despesas(categoria);
 CREATE INDEX idx_despesas_data ON despesas(data_despesa);
+CREATE INDEX idx_despesas_responsavel ON despesas(responsavel_id);

@@ -40,6 +40,7 @@ const Equipe = () => {
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [actionError, setActionError] = useState('')
   const [editingEquipe, setEditingEquipe] = useState(null)
+  const [editingMontador, setEditingMontador] = useState(null)
   const [equipeForm, setEquipeForm] = useState({
     nome: '',
     ativa: true
@@ -115,7 +116,7 @@ const Equipe = () => {
   const equipesAtivas = equipesList.filter((equipe) => equipe.ativa).length
   const totalMembros = membrosList.length
   const montadoresAtivos = usuariosList.filter(
-    (usuario) => usuario.tipo === 'montador' && usuario.ativo
+    (usuario) => ['montador', 'admin'].includes(usuario.tipo) && usuario.ativo
   ).length
 
   const membrosIds = useMemo(() => {
@@ -124,7 +125,7 @@ const Equipe = () => {
 
   const montadoresSemEquipe = useMemo(() => {
     return usuariosList.filter(
-      (usuario) => usuario.tipo === 'montador' && !membrosIds.has(usuario.id)
+      (usuario) => ['montador', 'admin'].includes(usuario.tipo) && !membrosIds.has(usuario.id)
     )
   }, [usuariosList, membrosIds])
 
@@ -132,7 +133,7 @@ const Equipe = () => {
     const normalizedSearch = montadorSearch.trim().toLowerCase()
 
     return usuariosList
-      .filter((usuario) => usuario.tipo === 'montador')
+      .filter((usuario) => ['montador', 'admin'].includes(usuario.tipo))
       .filter((usuario) => {
         if (!normalizedSearch) return true
         return (
@@ -209,6 +210,7 @@ const Equipe = () => {
 
   const openMontadorModal = () => {
     setActionError('')
+    setEditingMontador(null)
     setMontadorForm({
       nome: '',
       email: '',
@@ -219,8 +221,22 @@ const Equipe = () => {
     setIsMontadorModalOpen(true)
   }
 
+  const openEditMontadorModal = (montador) => {
+    setActionError('')
+    setEditingMontador(montador)
+    setMontadorForm({
+      nome: montador.nome || '',
+      email: montador.email || '',
+      senha: '',
+      ativo: Boolean(montador.ativo),
+      isAdmin: montador.tipo === 'admin'
+    })
+    setIsMontadorModalOpen(true)
+  }
+
   const closeMontadorModal = () => {
     setIsMontadorModalOpen(false)
+    setEditingMontador(null)
   }
 
   const handleEquipeSubmit = async (event) => {
@@ -337,8 +353,13 @@ const Equipe = () => {
   const handleMontadorSubmit = async (event) => {
     event.preventDefault()
 
-    if (!montadorForm.nome.trim() || !montadorForm.email.trim() || !montadorForm.senha) {
-      setActionError('Preencha nome, email e senha do montador.')
+    if (!montadorForm.nome.trim() || !montadorForm.email.trim()) {
+      setActionError('Preencha nome e email do montador.')
+      return
+    }
+
+    if (!editingMontador && !montadorForm.senha) {
+      setActionError('Preencha a senha do montador.')
       return
     }
 
@@ -346,15 +367,22 @@ const Equipe = () => {
       setIsActionLoading(true)
       setActionError('')
 
-      const senhaHash = await bcrypt.hash(montadorForm.senha, 10)
-
-      await api.post('/usuarios', {
+      const payload = {
         nome: montadorForm.nome.trim(),
         email: montadorForm.email.trim(),
-        senha_hash: senhaHash,
         tipo: montadorForm.isAdmin ? 'admin' : 'montador',
         ativo: montadorForm.ativo
-      })
+      }
+
+      if (montadorForm.senha) {
+        payload.senha_hash = await bcrypt.hash(montadorForm.senha, 10)
+      }
+
+      if (editingMontador) {
+        await api.put(`/usuarios/${editingMontador.id}`, payload)
+      } else {
+        await api.post('/usuarios', payload)
+      }
 
       await refetchUsuarios()
       closeMontadorModal()
@@ -520,6 +548,15 @@ const Equipe = () => {
                             </td>
                             <td>
                               <div className="equipe__row-actions">
+                                <button
+                                  type="button"
+                                  className="equipe__icon-button"
+                                  onClick={() => openEditMontadorModal(montador)}
+                                  disabled={!isAdmin}
+                                  title={isAdmin ? 'Editar montador' : 'Apenas administradores'}
+                                >
+                                  <MdEdit />
+                                </button>
                                 <button
                                   type="button"
                                   className="equipe__icon-button"
@@ -938,7 +975,7 @@ const Equipe = () => {
         <div className="equipe__modal-backdrop">
           <div className="equipe__modal">
             <div className="equipe__modal-header">
-              <h3>Novo montador</h3>
+              <h3>{editingMontador ? 'Editar montador' : 'Novo montador'}</h3>
               <button
                 type="button"
                 className="equipe__icon-button"
@@ -974,19 +1011,35 @@ const Equipe = () => {
                   required
                 />
               </label>
-              <label className="equipe__label">
-                Senha temporaria
-                <input
-                  type="password"
-                  className="equipe__input"
-                  value={montadorForm.senha}
-                  onChange={(event) => setMontadorForm((prev) => ({
-                    ...prev,
-                    senha: event.target.value
-                  }))}
-                  required
-                />
-              </label>
+              {!editingMontador && (
+                <label className="equipe__label">
+                  Senha temporaria
+                  <input
+                    type="password"
+                    className="equipe__input"
+                    value={montadorForm.senha}
+                    onChange={(event) => setMontadorForm((prev) => ({
+                      ...prev,
+                      senha: event.target.value
+                    }))}
+                    required
+                  />
+                </label>
+              )}
+              {editingMontador && (
+                <label className="equipe__label">
+                  Nova senha (opcional)
+                  <input
+                    type="password"
+                    className="equipe__input"
+                    value={montadorForm.senha}
+                    onChange={(event) => setMontadorForm((prev) => ({
+                      ...prev,
+                      senha: event.target.value
+                    }))}
+                  />
+                </label>
+              )}
               <label className="equipe__checkbox">
                 <input
                   type="checkbox"
@@ -1029,7 +1082,7 @@ const Equipe = () => {
                   className="equipe__button"
                   disabled={isActionLoading}
                 >
-                  {isActionLoading ? 'Salvando...' : 'Cadastrar'}
+                  {isActionLoading ? 'Salvando...' : (editingMontador ? 'Salvar' : 'Cadastrar')}
                 </button>
               </div>
             </form>

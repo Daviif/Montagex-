@@ -1,9 +1,10 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, Menu, shell } = require('electron');
 const path = require('path');
 
 let mainWindow;
 
 const createWindow = () => {
+  Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -21,7 +22,6 @@ const createWindow = () => {
 
   if (isDev) {
     mainWindow.loadURL(devUrl);
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -29,6 +29,8 @@ const createWindow = () => {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
+
+  mainWindow.setMenuBarVisibility(false);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);

@@ -2,6 +2,7 @@ const express = require('express');
 const createCrudRouter = require('./crudRouter');
 const authMiddleware = require('../middleware/auth');
 const authRoutes = require('./auth');
+const dashboardRoutes = require('./dashboard');
 const dashboardSalariosRoutes = require('./dashboardSalarios');
 const { models } = require('../models');
 
@@ -18,7 +19,8 @@ router.use('/auth', authRoutes);
 router.use(authMiddleware);
 
 // Rotas de dashboard
-router.use('/dashboard', dashboardSalariosRoutes);
+router.use('/dashboard/salarios', dashboardSalariosRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 const routeMap = {
   usuarios: models.Usuario,
