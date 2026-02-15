@@ -18,6 +18,7 @@ const Financeiro = () => {
   const [activeTab, setActiveTab] = useState('salarios')
   const [searchTerm, setSearchTerm] = useState('')
   const [isDespesaModalOpen, setIsDespesaModalOpen] = useState(false)
+  const [isRecebimentoModalOpen, setIsRecebimentoModalOpen] = useState(false)
   const [expandedMontadores, setExpandedMontadores] = useState(() => new Set())
   const [despesaForm, setDespesaForm] = useState({
     categoria: 'Outros',
@@ -26,9 +27,21 @@ const Financeiro = () => {
     responsavel_id: '',
     descricao: ''
   })
+  const [recebimentoForm, setRecebimentoForm] = useState({
+    servico_id: '',
+    valor: '',
+    data_prevista: '',
+    data_recebimento: '',
+    status: 'pendente',
+    forma_pagamento: ''
+  })
 
   const { data: salariosData, loading: salariosLoading } = useApi('/dashboard/salarios')
-  const { data: recebimentosData, loading: recebimentosLoading } = useApi('/recebimentos', 'GET', [])
+  const {
+    data: recebimentosData,
+    loading: recebimentosLoading,
+    refetch: refetchRecebimentos
+  } = useApi('/recebimentos', 'GET', [])
   const { data: pagamentosData, loading: pagamentosLoading } = useApi('/pagamentos_funcionarios', 'GET', [])
   const {
     data: despesasData,
@@ -166,14 +179,25 @@ const Financeiro = () => {
     const entries = salarySource.map((sm) => {
       const servico = servicosConcluidosMap[sm.servico_id] || servicosMap[sm.servico_id]
       const loja = servico?.tipo_cliente === 'loja' ? lojasMap[servico.loja_id] : null
-      const valorCheio = Number(servico?.valor_total || servico?.valor_repasse_montagem || sm.valor_atribuido || 0)
-      const valorCalculadoCliente = loja?.usa_porcentagem
-        && loja?.porcentagem_repasse != null
-        && Number(loja.porcentagem_repasse) > 0
-        ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
-        : valorCheio
+      
+      // Valor cheio é sempre valor_total (valor bruto do serviço)
+      const valorCheio = Number(servico?.valor_total || 0)
+      
+      // Valor calculado: usar valor_repasse_montagem se disponível (já calculado)
+      // Senão, calcular com porcentagem da loja
+      let valorCalculadoCliente = 0
+      if (servico?.valor_repasse_montagem != null && Number(servico.valor_repasse_montagem) > 0) {
+        valorCalculadoCliente = Number(servico.valor_repasse_montagem)
+      } else {
+        valorCalculadoCliente = loja?.usa_porcentagem
+          && loja?.porcentagem_repasse != null
+          && Number(loja.porcentagem_repasse) > 0
+          ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
+          : valorCheio
+      }
+      
       const totalMontadores = montadoresPorServico.get(sm.servico_id) || 1
-      const valorMontador = sm.valor_atribuido != null
+      const valorMontador = sm.valor_atribuido != null && Number(sm.valor_atribuido) > 0
         ? Number(sm.valor_atribuido)
         : sm.percentual_divisao
           ? (valorCalculadoCliente * Number(sm.percentual_divisao)) / 100
@@ -219,17 +243,21 @@ const Financeiro = () => {
     const uniqueServicoIds = new Set(entries.map((entry) => entry.servicoId))
     const totalCheio = servicosConcluidos.length > 0
       ? servicosConcluidos.reduce((acc, servico) => {
-          return acc + Number(servico.valor_total || servico.valor_repasse_montagem || 0)
+          return acc + Number(servico.valor_total || 0)
         }, 0)
       : Array.from(uniqueServicoIds).reduce((acc, servicoId) => {
           const servico = servicosMap[servicoId]
-          return acc + Number(servico?.valor_total || servico?.valor_repasse_montagem || 0)
+          return acc + Number(servico?.valor_total || 0)
         }, 0)
 
     const totalCalculado = servicosConcluidos.length > 0
       ? servicosConcluidos.reduce((acc, servico) => {
+          // Usar valor_repasse_montagem se disponível, senão calcular
+          if (servico.valor_repasse_montagem != null && Number(servico.valor_repasse_montagem) > 0) {
+            return acc + Number(servico.valor_repasse_montagem)
+          }
           const loja = servico.tipo_cliente === 'loja' ? lojasMap[servico.loja_id] : null
-          const valorCheio = Number(servico.valor_total || servico.valor_repasse_montagem || 0)
+          const valorCheio = Number(servico.valor_total || 0)
           const valorCalculadoCliente = loja?.usa_porcentagem
             && loja?.porcentagem_repasse != null
             && Number(loja.porcentagem_repasse) > 0
@@ -240,8 +268,12 @@ const Financeiro = () => {
       : Array.from(uniqueServicoIds).reduce((acc, servicoId) => {
           const servico = servicosMap[servicoId]
           if (!servico) return acc
+          // Usar valor_repasse_montagem se disponível, senão calcular
+          if (servico.valor_repasse_montagem != null && Number(servico.valor_repasse_montagem) > 0) {
+            return acc + Number(servico.valor_repasse_montagem)
+          }
           const loja = servico.tipo_cliente === 'loja' ? lojasMap[servico.loja_id] : null
-          const valorCheio = Number(servico.valor_total || servico.valor_repasse_montagem || 0)
+          const valorCheio = Number(servico.valor_total || 0)
           const valorCalculadoCliente = loja?.usa_porcentagem && loja?.porcentagem_repasse != null
             ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
             : valorCheio
@@ -338,6 +370,16 @@ const Financeiro = () => {
         descricao: ''
       })
       setIsDespesaModalOpen(true)
+    } else if (activeTab === 'recebimentos') {
+      setRecebimentoForm({
+        servico_id: '',
+        valor: '',
+        data_prevista: '',
+        data_recebimento: '',
+        status: 'pendente',
+        forma_pagamento: ''
+      })
+      setIsRecebimentoModalOpen(true)
     }
   }
 
@@ -357,6 +399,26 @@ const Financeiro = () => {
       refetchDespesas()
     } catch (err) {
       alert(err.response?.data?.error || 'Não foi possível salvar a despesa.')
+    }
+  }
+
+  const handleRecebimentoSubmit = async (event) => {
+    event.preventDefault()
+
+    try {
+      await api.post('/recebimentos', {
+        servico_id: recebimentoForm.servico_id,
+        valor: recebimentoForm.valor ? Number(recebimentoForm.valor) : 0,
+        data_prevista: recebimentoForm.data_prevista || null,
+        data_recebimento: recebimentoForm.data_recebimento || null,
+        status: recebimentoForm.status || 'pendente',
+        forma_pagamento: recebimentoForm.forma_pagamento || null
+      })
+
+      setIsRecebimentoModalOpen(false)
+      refetchRecebimentos()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível salvar o recebimento.')
     }
   }
 
@@ -743,6 +805,143 @@ const Financeiro = () => {
                   type="button"
                   className="financeiro__button financeiro__button--ghost"
                   onClick={() => setIsDespesaModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="financeiro__button">
+                  Cadastrar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isRecebimentoModalOpen && (
+        <div className="financeiro__modal-backdrop" onClick={() => setIsRecebimentoModalOpen(false)}>
+          <div className="financeiro__modal" onClick={(event) => event.stopPropagation()}>
+            <div className="financeiro__modal-header">
+              <h3>Novo Recebimento</h3>
+              <button
+                type="button"
+                className="financeiro__modal-close"
+                onClick={() => setIsRecebimentoModalOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <form className="financeiro__modal-form" onSubmit={handleRecebimentoSubmit}>
+              <div className="financeiro__form-grid">
+                <label className="financeiro__label">
+                  Serviço *
+                  <select
+                    className="financeiro__input"
+                    value={recebimentoForm.servico_id}
+                    onChange={(event) => {
+                      const servicoId = event.target.value
+                      const servico = servicosMap[servicoId]
+                      setRecebimentoForm((prev) => ({
+                        ...prev,
+                        servico_id: servicoId,
+                        valor: servico?.valor_total || prev.valor
+                      }))
+                    }}
+                    required
+                  >
+                    <option value="">Selecione um serviço</option>
+                    {(servicosData || []).map((servico) => (
+                      <option key={servico.id} value={servico.id}>
+                        {servico.codigo_servico} - {formatCurrency(Number(servico.valor_total || 0))}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="financeiro__label">
+                  Valor (R$) *
+                  <input
+                    className="financeiro__input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={recebimentoForm.valor}
+                    onChange={(event) => setRecebimentoForm((prev) => ({
+                      ...prev,
+                      valor: event.target.value
+                    }))}
+                    required
+                  />
+                </label>
+
+                <label className="financeiro__label">
+                  Status
+                  <select
+                    className="financeiro__input"
+                    value={recebimentoForm.status}
+                    onChange={(event) => setRecebimentoForm((prev) => ({
+                      ...prev,
+                      status: event.target.value
+                    }))}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="recebido">Recebido</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </label>
+
+                <label className="financeiro__label">
+                  Forma de Pagamento
+                  <select
+                    className="financeiro__input"
+                    value={recebimentoForm.forma_pagamento}
+                    onChange={(event) => setRecebimentoForm((prev) => ({
+                      ...prev,
+                      forma_pagamento: event.target.value
+                    }))}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="PIX">PIX</option>
+                    <option value="Cartão de Crédito">Cartão de Crédito</option>
+                    <option value="Cartão de Débito">Cartão de Débito</option>
+                    <option value="Transferência">Transferência</option>
+                    <option value="Boleto">Boleto</option>
+                  </select>
+                </label>
+
+                <label className="financeiro__label">
+                  Data Prevista
+                  <input
+                    className="financeiro__input"
+                    type="date"
+                    value={recebimentoForm.data_prevista}
+                    onChange={(event) => setRecebimentoForm((prev) => ({
+                      ...prev,
+                      data_prevista: event.target.value
+                    }))}
+                  />
+                </label>
+
+                <label className="financeiro__label">
+                  Data de Recebimento
+                  <input
+                    className="financeiro__input"
+                    type="date"
+                    value={recebimentoForm.data_recebimento}
+                    onChange={(event) => setRecebimentoForm((prev) => ({
+                      ...prev,
+                      data_recebimento: event.target.value
+                    }))}
+                  />
+                </label>
+              </div>
+
+              <div className="financeiro__modal-actions">
+                <button
+                  type="button"
+                  className="financeiro__button financeiro__button--ghost"
+                  onClick={() => setIsRecebimentoModalOpen(false)}
                 >
                   Cancelar
                 </button>

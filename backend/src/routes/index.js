@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/auth');
 const authRoutes = require('./auth');
 const dashboardRoutes = require('./dashboard');
 const dashboardSalariosRoutes = require('./dashboardSalarios');
+const lojasRoutes = require('./lojas');
 const { models } = require('../models');
 
 const router = express.Router();
@@ -22,11 +23,14 @@ router.use(authMiddleware);
 router.use('/dashboard/salarios', dashboardSalariosRoutes);
 router.use('/dashboard', dashboardRoutes);
 
+// Rota customizada de lojas (com recálculo automático)
+router.use('/lojas', lojasRoutes);
+
 const routeMap = {
   usuarios: models.Usuario,
   equipes: models.Equipe,
   equipe_membros: models.EquipeMembro,
-  lojas: models.Loja,
+  // lojas: models.Loja, // Removido - usa rota customizada acima
   clientes_particulares: models.ClienteParticular,
   produtos: models.Produto,
   servicos: models.Servico,

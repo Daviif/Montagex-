@@ -1072,3 +1072,20 @@
     align-items: flex-start;
   }
 }
+
+/* Info box para dados preenchidos automaticamente */
+.servicos__info-box {
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.servicos__info-box--auto {
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: rgb(37, 99, 235);
+}

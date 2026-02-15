@@ -32,8 +32,9 @@ const Clientes = () => {
   const [isActionLoading, setIsActionLoading] = useState(false)
   const [lookupError, setLookupError] = useState('')
   const [isLookupLoading, setIsLookupLoading] = useState(false)
+  const [cepError, setCepError] = useState('')
+  const [isCepLoading, setIsCepLoading] = useState(false)
   const [lojaForm, setLojaForm] = useState({
-    nome: '',
     cnpj: '',
     razao_social: '',
     nome_fantasia: '',
@@ -48,7 +49,13 @@ const Clientes = () => {
   const [particularForm, setParticularForm] = useState({
     nome: '',
     telefone: '',
-    endereco: ''
+    endereco_rua: '',
+    endereco_numero: '',
+    endereco_complemento: '',
+    endereco_bairro: '',
+    endereco_cidade: '',
+    endereco_estado: '',
+    endereco_cep: ''
   })
 
   const {
@@ -67,6 +74,35 @@ const Clientes = () => {
 
   const { user } = useAuth()
   const isAdmin = user?.tipo === 'admin'
+
+  // Função para formatar CEP
+  const formatCep = (value) => {
+    const cleaned = value.replace(/\D/g, '')
+    if (cleaned.length <= 5) {
+      return cleaned
+    }
+    return `${cleaned.slice(0, 5)}-${cleaned.slice(5, 8)}`
+  }
+
+  // Função para formatar telefone
+  const formatTelefone = (value) => {
+    const cleaned = value.replace(/\D/g, '')
+    if (cleaned.length <= 2) {
+      return cleaned
+    }
+    if (cleaned.length <= 6) {
+      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`
+    }
+    if (cleaned.length <= 10) {
+      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6, 10)}`
+    }
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`
+  }
+
+  // Função para formatar estado (UF)
+  const formatEstado = (value) => {
+    return value.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2)
+  }
 
   const lojasList = useMemo(
     () => (Array.isArray(lojas) ? lojas : []),
@@ -134,11 +170,22 @@ const Clientes = () => {
 
   const openParticularModal = (cliente = null) => {
     setActionError('')
+    setCepError('')
     setEditingItem(cliente)
+    
+    // Parse endereço existente (formato: "Rua, Número, Complemento, Bairro, Cidade, Estado, CEP")
+    const enderecoParts = (cliente?.endereco || '').split(',').map(part => part.trim())
+    
     setParticularForm({
       nome: cliente?.nome || '',
       telefone: cliente?.telefone || '',
-      endereco: cliente?.endereco || ''
+      endereco_rua: enderecoParts[0] || '',
+      endereco_numero: enderecoParts[1] || '',
+      endereco_complemento: enderecoParts[2] || '',
+      endereco_bairro: enderecoParts[3] || '',
+      endereco_cidade: enderecoParts[4] || '',
+      endereco_estado: enderecoParts[5] || '',
+      endereco_cep: enderecoParts[6] || ''
     })
     setIsParticularModalOpen(true)
   }
@@ -215,6 +262,45 @@ const Clientes = () => {
     return parts.join(', ')
   }
 
+  const handleCepLookup = async () => {
+    const cep = particularForm.endereco_cep.replace(/\D/g, '')
+
+    if (cep.length !== 8) {
+      setCepError('')
+      return
+    }
+
+    try {
+      setIsCepLoading(true)
+      setCepError('')
+
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      if (!response.ok) {
+        throw new Error('Falha ao consultar CEP')
+      }
+
+      const data = await response.json()
+      
+      if (data.erro) {
+        setCepError('CEP não encontrado.')
+        return
+      }
+
+      // Preencher os campos automaticamente
+      setParticularForm((prev) => ({
+        ...prev,
+        endereco_rua: data.logradouro || prev.endereco_rua,
+        endereco_bairro: data.bairro || prev.endereco_bairro,
+        endereco_cidade: data.localidade || prev.endereco_cidade,
+        endereco_estado: data.uf || prev.endereco_estado
+      }))
+    } catch (err) {
+      setCepError('Não foi possível consultar o CEP agora.')
+    } finally {
+      setIsCepLoading(false)
+    }
+  }
+
   const handleCnpjLookup = async () => {
     const cnpj = sanitizeCnpj(lojaForm.cnpj || '')
 
@@ -268,8 +354,33 @@ const Clientes = () => {
   const handleParticularSubmit = async (event) => {
     event.preventDefault()
 
+    // Validações
     if (!particularForm.nome.trim()) {
       setActionError('Informe o nome do cliente.')
+      return
+    }
+    if (!particularForm.endereco_rua.trim()) {
+      setActionError('Informe a rua do endereço.')
+      return
+    }
+    if (!particularForm.endereco_numero.trim()) {
+      setActionError('Informe o número do endereço.')
+      return
+    }
+    if (!particularForm.endereco_bairro.trim()) {
+      setActionError('Informe o bairro do endereço.')
+      return
+    }
+    if (!particularForm.endereco_cidade.trim()) {
+      setActionError('Informe a cidade do endereço.')
+      return
+    }
+    if (!particularForm.endereco_estado.trim()) {
+      setActionError('Informe o estado do endereço.')
+      return
+    }
+    if (!particularForm.endereco_cep.trim()) {
+      setActionError('Informe o CEP do endereço.')
       return
     }
 
@@ -277,10 +388,21 @@ const Clientes = () => {
       setIsActionLoading(true)
       setActionError('')
 
+      // Combinar campos de endereço
+      const enderecoParts = [
+        particularForm.endereco_rua.trim(),
+        particularForm.endereco_numero.trim(),
+        particularForm.endereco_complemento.trim(),
+        particularForm.endereco_bairro.trim(),
+        particularForm.endereco_cidade.trim(),
+        particularForm.endereco_estado.trim(),
+        particularForm.endereco_cep.trim()
+      ].filter(Boolean)
+
       const payload = {
         nome: particularForm.nome.trim(),
         telefone: particularForm.telefone || null,
-        endereco: particularForm.endereco || null
+        endereco: enderecoParts.join(', ')
       }
 
       if (editingItem) {
@@ -411,7 +533,7 @@ const Clientes = () => {
                   {filteredLojas.map((loja) => (
                     <tr key={loja.id} className="clientes__row">
                       <td>
-                        <div className="clientes__name">{loja.nome}</div>
+                        <div className="clientes__name">{loja.razao_social}</div>
                         <div className="clientes__meta">
                           {loja.cnpj ? `CNPJ: ${loja.cnpj}` : 'CNPJ nao informado'}
                         </div>
@@ -723,7 +845,7 @@ const Clientes = () => {
             </div>
             <form className="clientes__modal-form" onSubmit={handleParticularSubmit}>
               <label className="clientes__label">
-                Nome completo
+                Nome completo *
                 <input
                   type="text"
                   className="clientes__input"
@@ -743,22 +865,130 @@ const Clientes = () => {
                   value={particularForm.telefone}
                   onChange={(event) => setParticularForm((prev) => ({
                     ...prev,
-                    telefone: event.target.value
+                    telefone: formatTelefone(event.target.value)
                   }))}
+                  placeholder="(00) 00000-0000"
+                  maxLength="15"
                 />
               </label>
+
+              {/* Campos de Endereço */}
+              <div className="clientes__form-grid">
+                <label className="clientes__label">
+                  Rua *
+                  <input
+                    type="text"
+                    className="clientes__input"
+                    value={particularForm.endereco_rua}
+                    onChange={(event) => setParticularForm((prev) => ({
+                      ...prev,
+                      endereco_rua: event.target.value
+                    }))}
+                    required
+                  />
+                </label>
+                <label className="clientes__label">
+                  Número *
+                  <input
+                    type="text"
+                    className="clientes__input"
+                    value={particularForm.endereco_numero}
+                    onChange={(event) => setParticularForm((prev) => ({
+                      ...prev,
+                      endereco_numero: event.target.value
+                    }))}
+                    required
+                  />
+                </label>
+              </div>
+
               <label className="clientes__label">
-                Endereco
+                Complemento
                 <input
                   type="text"
                   className="clientes__input"
-                  value={particularForm.endereco}
+                  value={particularForm.endereco_complemento}
                   onChange={(event) => setParticularForm((prev) => ({
                     ...prev,
-                    endereco: event.target.value
+                    endereco_complemento: event.target.value
                   }))}
                 />
               </label>
+
+              <div className="clientes__form-grid">
+                <label className="clientes__label">
+                  Bairro *
+                  <input
+                    type="text"
+                    className="clientes__input"
+                    value={particularForm.endereco_bairro}
+                    onChange={(event) => setParticularForm((prev) => ({
+                      ...prev,
+                      endereco_bairro: event.target.value
+                    }))}
+                    required
+                  />
+                </label>
+                <label className="clientes__label">
+                  Cidade *
+                  <input
+                    type="text"
+                    className="clientes__input"
+                    value={particularForm.endereco_cidade}
+                    onChange={(event) => setParticularForm((prev) => ({
+                      ...prev,
+                      endereco_cidade: event.target.value
+                    }))}
+                    required
+                  />
+                </label>
+              </div>
+
+              <div className="clientes__form-grid">
+                <label className="clientes__label">
+                  Estado *
+                  <input
+                    type="text"
+                    className="clientes__input"
+                    value={particularForm.endereco_estado}
+                    onChange={(event) => setParticularForm((prev) => ({
+                      ...prev,
+                      endereco_estado: formatEstado(event.target.value)
+                    }))}
+                    maxLength="2"
+                    placeholder="SP"
+                    required
+                  />
+                </label>
+                <label className="clientes__label">
+                  CEP *
+                  <input
+                    type="text"
+                    className="clientes__input"
+                    value={particularForm.endereco_cep}
+                    onChange={(event) => setParticularForm((prev) => ({
+                      ...prev,
+                      endereco_cep: formatCep(event.target.value)
+                    }))}
+                    onBlur={handleCepLookup}
+                    placeholder="00000-000"
+                    maxLength="9"
+                    disabled={isCepLoading}
+                    required
+                  />
+                </label>
+              </div>
+              
+              {isCepLoading && (
+                <div className="clientes__info clientes__info--inline">
+                  Buscando endereço...
+                </div>
+              )}
+              {cepError && (
+                <div className="clientes__error clientes__error--inline">
+                  {cepError}
+                </div>
+              )}
               {actionError && (
                 <div className="clientes__error clientes__error--inline">
                   {actionError}

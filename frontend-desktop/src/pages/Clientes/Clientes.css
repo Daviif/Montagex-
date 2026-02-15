@@ -123,6 +123,19 @@
   margin-top: var(--spacing-md);
 }
 
+.clientes__info {
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: rgb(37, 99, 235);
+  font-size: var(--font-size-sm);
+}
+
+.clientes__info--inline {
+  margin-top: var(--spacing-md);
+}
+
 .clientes__search {
   position: relative;
 }

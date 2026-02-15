@@ -126,22 +126,29 @@ router.get('/', async (req, res) => {
       const servico = servicoById[sm.servico_id];
       if (!servico) return 0;
 
-      const valorCheio = getValorCheio(servico);
-      const loja = servico.tipo_cliente === 'loja' ? servico.Loja : null;
-      const valorRepasse = loja?.usa_porcentagem && loja?.porcentagem_repasse != null && Number(loja.porcentagem_repasse) > 0
-        ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
-        : valorCheio;
-
-      if (sm.valor_atribuido != null && Number(sm.valor_atribuido) > 0) {
-        return Number(sm.valor_atribuido);
+      // SEMPRE recalcular baseado no valor_repasse_montagem atual
+      // (não usar valor_atribuido antigo que pode estar desatualizado)
+      let valorBase = 0;
+      if (servico.valor_repasse_montagem != null && Number(servico.valor_repasse_montagem) > 0) {
+        // Valor já calculado com porcentagem da loja
+        valorBase = Number(servico.valor_repasse_montagem);
+      } else {
+        // Calcular aqui (fallback para serviços antigos)
+        const valorCheio = getValorCheio(servico);
+        const loja = servico.tipo_cliente === 'loja' ? servico.Loja : null;
+        valorBase = loja?.usa_porcentagem && loja?.porcentagem_repasse != null && Number(loja.porcentagem_repasse) > 0
+          ? (valorCheio * Number(loja.porcentagem_repasse)) / 100
+          : valorCheio;
       }
 
+      // Aplicar divisão por percentual se definido
       if (sm.percentual_divisao != null && Number(sm.percentual_divisao) > 0) {
-        return (valorRepasse * Number(sm.percentual_divisao)) / 100;
+        return (valorBase * Number(sm.percentual_divisao)) / 100;
       }
 
+      // Dividir igualmente entre montadores
       const totalMontadores = montadoresPorServico[sm.servico_id] || 1;
-      return valorRepasse / totalMontadores;
+      return valorBase / totalMontadores;
     };
 
     // Para cada montador, calcular seus valores

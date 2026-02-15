@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('Servico', {
+  const Servico = sequelize.define('Servico', {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -53,6 +53,15 @@ module.exports = (sequelize, DataTypes) => {
     observacoes: {
       type: DataTypes.TEXT
     },
+    cliente_final_nome: {
+      type: DataTypes.TEXT
+    },
+    cliente_final_contato: {
+      type: DataTypes.STRING(50)
+    },
+    codigo_os_loja: {
+      type: DataTypes.STRING(50)
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW
@@ -62,6 +71,22 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     tableName: 'servicos',
-    timestamps: false
+    timestamps: false,
+    hooks: {
+      // Hook após UPDATE: recalcula montadores se valor_repasse_montagem ou valor_total mudou
+      afterUpdate: async (servico, options) => {
+        const { recalcularValoresMontadores } = require('../utils/recalculos');
+        const models = require('./index').models;
+        
+        // Verificar se valor_repasse_montagem ou valor_total mudou
+        const changed = servico.changed();
+        if (changed && (changed.includes('valor_repasse_montagem') || changed.includes('valor_total'))) {
+          const valorRepasse = Number(servico.valor_repasse_montagem || 0);
+          await recalcularValoresMontadores(servico.id, valorRepasse, models);
+        }
+      }
+    }
   });
+
+  return Servico;
 };

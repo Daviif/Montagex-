@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('ServicoMontador', {
+  const ServicoMontador = sequelize.define('ServicoMontador', {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -31,6 +31,48 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     tableName: 'servico_montadores',
-    timestamps: false
+    timestamps: false,
+    hooks: {
+      // Hook após CREATE: recalcula todos os montadores do serviço (divisão mudou)
+      afterCreate: async (montador, options) => {
+        const { recalcularValoresMontadores } = require('../utils/recalculos');
+        const models = require('./index').models;
+        
+        const servico = await models.Servico.findByPk(montador.servico_id);
+        if (servico) {
+          const valorRepasse = Number(servico.valor_repasse_montagem || 0);
+          await recalcularValoresMontadores(servico.id, valorRepasse, models);
+        }
+      },
+      
+      // Hook após DELETE: recalcula montadores restantes
+      afterDestroy: async (montador, options) => {
+        const { recalcularValoresMontadores } = require('../utils/recalculos');
+        const models = require('./index').models;
+        
+        const servico = await models.Servico.findByPk(montador.servico_id);
+        if (servico) {
+          const valorRepasse = Number(servico.valor_repasse_montagem || 0);
+          await recalcularValoresMontadores(servico.id, valorRepasse, models);
+        }
+      },
+      
+      // Hook após UPDATE: recalcula se percentual_divisao mudou
+      afterUpdate: async (montador, options) => {
+        const { recalcularValoresMontadores } = require('../utils/recalculos');
+        const models = require('./index').models;
+        
+        const changed = montador.changed();
+        if (changed && changed.includes('percentual_divisao')) {
+          const servico = await models.Servico.findByPk(montador.servico_id);
+          if (servico) {
+            const valorRepasse = Number(servico.valor_repasse_montagem || 0);
+            await recalcularValoresMontadores(servico.id, valorRepasse, models);
+          }
+        }
+      }
+    }
   });
+
+  return ServicoMontador;
 };

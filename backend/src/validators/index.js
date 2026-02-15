@@ -252,6 +252,21 @@ const servicoValidators = {
       .optional()
       .isIn(['agendado', 'em_rota', 'concluido', 'cancelado']).withMessage('Status inválido'),
 
+    body('cliente_final_nome')
+      .optional()
+      .trim()
+      .isLength({ max: 200 }).withMessage('Nome do cliente final muito longo'),
+
+    body('cliente_final_contato')
+      .optional()
+      .trim()
+      .isLength({ max: 50 }).withMessage('Contato do cliente final muito longo'),
+
+    body('codigo_os_loja')
+      .optional()
+      .trim()
+      .isLength({ max: 50 }).withMessage('Código OS da loja muito longo'),
+
     handleValidationErrors
   ],
 
@@ -267,6 +282,21 @@ const servicoValidators = {
     body('valor_total')
       .optional()
       .isDecimal({ decimal_digits: '1,2' }).withMessage('Valor deve ser decimal com até 2 casas'),
+
+    body('cliente_final_nome')
+      .optional()
+      .trim()
+      .isLength({ max: 200 }).withMessage('Nome do cliente final muito longo'),
+
+    body('cliente_final_contato')
+      .optional()
+      .trim()
+      .isLength({ max: 50 }).withMessage('Contato do cliente final muito longo'),
+
+    body('codigo_os_loja')
+      .optional()
+      .trim()
+      .isLength({ max: 50 }).withMessage('Código OS da loja muito longo'),
 
     handleValidationErrors
   ]

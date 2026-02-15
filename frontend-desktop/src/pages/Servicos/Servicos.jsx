@@ -55,7 +55,10 @@ const Servicos = () => {
     janela_inicio: '',
     janela_fim: '',
     observacoes: '',
-    status: 'agendado'
+    status: 'agendado',
+    cliente_final_nome: '',
+    cliente_final_contato: '',
+    codigo_os_loja: ''
   });
 
   // Memoized maps for fast lookups
@@ -219,7 +222,10 @@ const Servicos = () => {
       janela_inicio: servico.janela_inicio || '',
       janela_fim: servico.janela_fim || '',
       observacoes: servico.observacoes || '',
-      status: servico.status || 'agendado'
+      status: servico.status || 'agendado',
+      cliente_final_nome: servico.cliente_final_nome || '',
+      cliente_final_contato: servico.cliente_final_contato || '',
+      codigo_os_loja: servico.codigo_os_loja || ''
     });
     setTabProdutos(getServicoProdutos(servico.id));
     setTabMontadores(getServicoMontadores(servico.id));
@@ -246,7 +252,10 @@ const Servicos = () => {
       janela_inicio: '',
       janela_fim: '',
       observacoes: '',
-      status: 'agendado'
+      status: 'agendado',
+      cliente_final_nome: '',
+      cliente_final_contato: '',
+      codigo_os_loja: ''
     });
     setTabProdutos([]);
     setTabMontadores([]);
@@ -297,6 +306,76 @@ const Servicos = () => {
     }));
   }, [buildEnderecoExecucao, formData, geocodeAddress]);
 
+  // Formatar telefone
+  const formatTelefone = useCallback((value) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length <= 2) {
+      return cleaned;
+    }
+    if (cleaned.length <= 6) {
+      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
+    }
+    if (cleaned.length <= 10) {
+      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6, 10)}`;
+    }
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
+  }, []);
+
+  // Preencher dados do cliente particular automaticamente
+  const handleClienteParticularSelect = useCallback((clienteId) => {
+    if (!clienteId) return;
+    
+    const cliente = particularById[clienteId];
+    if (!cliente) return;
+
+    // Parse endereço existente (formato: "Rua, Número, Complemento, Bairro, Cidade, Estado, CEP")
+    const enderecoParts = (cliente.endereco || '').split(',').map(part => part.trim());
+
+    const novosDados = {
+      cliente_particular_id: clienteId,
+      cliente_final_nome: cliente.nome || '',
+      cliente_final_contato: cliente.telefone || '',
+      endereco_rua: enderecoParts[0] || '',
+      endereco_numero: enderecoParts[1] || '',
+      endereco_complemento: enderecoParts[2] || '',
+      endereco_bairro: enderecoParts[3] || '',
+      endereco_cidade: enderecoParts[4] || '',
+      endereco_estado: enderecoParts[5] || '',
+      endereco_cep: enderecoParts[6] || ''
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      ...novosDados
+    }));
+
+    // Geocodificar endereço automaticamente se tiver dados suficientes
+    if (novosDados.endereco_rua && novosDados.endereco_cidade) {
+      const enderecoCompleto = [
+        novosDados.endereco_rua,
+        novosDados.endereco_numero,
+        novosDados.endereco_bairro,
+        novosDados.endereco_cidade,
+        novosDados.endereco_estado,
+        novosDados.endereco_cep
+      ].filter(Boolean).join(', ');
+      
+      geocodeAddress(enderecoCompleto);
+    }
+  }, [particularById, geocodeAddress]);
+
+  // Lidar com mudança de tipo de cliente
+  const handleTipoClienteChange = useCallback((novoTipo) => {
+    setFormData(prev => ({
+      ...prev,
+      tipo_cliente: novoTipo,
+      loja_id: '',
+      cliente_particular_id: '',
+      // Limpar campos específicos quando mudar de tipo
+      ...(novoTipo === 'particular' ? { codigo_os_loja: '' } : {})
+    }));
+  }, []);
+
   // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -328,7 +407,10 @@ const Servicos = () => {
             janela_inicio: formData.janela_inicio || null,
             janela_fim: formData.janela_fim || null,
             observacoes: formData.observacoes || null,
-            status: formData.status
+            status: formData.status,
+            cliente_final_nome: formData.tipo_cliente === 'loja' ? formData.cliente_final_nome || null : null,
+            cliente_final_contato: formData.tipo_cliente === 'loja' ? formData.cliente_final_contato || null : null,
+            codigo_os_loja: formData.tipo_cliente === 'loja' ? formData.codigo_os_loja || null : null
           };
 
       const servicoResponse = editingId
@@ -362,16 +444,26 @@ const Servicos = () => {
           (existingMontadores.data || []).map((item) => api.delete(`/servico_montadores/${item.id}`))
         );
 
+        // Filtrar montadores válidos e remover duplicatas
         const montadoresValidos = tabMontadores.filter((montador) => montador.usuario_id);
-        const totalPercentual = montadoresValidos.reduce(
+        
+        // Remover duplicatas baseado em usuario_id (manter apenas o primeiro)
+        const montadoresUnicos = montadoresValidos.reduce((acc, montador) => {
+          if (!acc.find(m => m.usuario_id === montador.usuario_id)) {
+            acc.push(montador);
+          }
+          return acc;
+        }, []);
+        
+        const totalPercentual = montadoresUnicos.reduce(
           (acc, montador) => acc + Number(montador.percentual_divisao || 0),
           0
         );
-        const valorPorMontador = montadoresValidos.length > 0
-          ? Number((repasseBase / montadoresValidos.length).toFixed(2))
+        const valorPorMontador = montadoresUnicos.length > 0
+          ? Number((repasseBase / montadoresUnicos.length).toFixed(2))
           : 0;
 
-        const montadoresPayload = montadoresValidos.map((montador) => {
+        const montadoresPayload = montadoresUnicos.map((montador) => {
           const percentual = Number(montador.percentual_divisao || 0);
           const valorCalculado = percentual > 0
             ? (repasseBase * percentual) / 100
@@ -649,7 +741,7 @@ const Servicos = () => {
                   <select
                     id="tipo_cliente"
                     value={formData.tipo_cliente}
-                    onChange={(e) => setFormData({ ...formData, tipo_cliente: e.target.value })}
+                    onChange={(e) => handleTipoClienteChange(e.target.value)}
                     required
                   >
                     <option value="loja">Loja</option>
@@ -667,7 +759,7 @@ const Servicos = () => {
                       if (formData.tipo_cliente === 'loja') {
                         setFormData({ ...formData, loja_id: e.target.value });
                       } else {
-                        setFormData({ ...formData, cliente_particular_id: e.target.value });
+                        handleClienteParticularSelect(e.target.value);
                       }
                     }}
                     required
@@ -687,6 +779,79 @@ const Servicos = () => {
                   </select>
                 </div>
               </div>
+
+              {/* 2.5 Informações do Cliente Final (apenas para lojas) */}
+              {formData.tipo_cliente === 'loja' && (
+                <>
+                  <div className="servicos__form-row">
+                    <div className="servicos__form-group">
+                      <label htmlFor="cliente_final_nome">Nome do Cliente</label>
+                      <input
+                        id="cliente_final_nome"
+                        type="text"
+                        value={formData.cliente_final_nome}
+                        onChange={(e) => setFormData({ ...formData, cliente_final_nome: e.target.value })}
+                        placeholder="Nome do cliente que comprou na loja"
+                      />
+                    </div>
+                    <div className="servicos__form-group">
+                      <label htmlFor="cliente_final_contato">Contato do Cliente</label>
+                      <input
+                        id="cliente_final_contato"
+                        type="text"
+                        value={formData.cliente_final_contato}
+                        onChange={(e) => setFormData({ ...formData, cliente_final_contato: formatTelefone(e.target.value) })}
+                        placeholder="(00) 00000-0000"
+                        maxLength="15"
+                      />
+                    </div>
+                  </div>
+                  <div className="servicos__form-row">
+                    <div className="servicos__form-group">
+                      <label htmlFor="codigo_os_loja">Código OS da Loja</label>
+                      <input
+                        id="codigo_os_loja"
+                        type="text"
+                        value={formData.codigo_os_loja}
+                        onChange={(e) => setFormData({ ...formData, codigo_os_loja: e.target.value })}
+                        placeholder="Ex: OS-12345"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* 2.6 Informações do Cliente Particular (apenas para particulares) */}
+              {formData.tipo_cliente === 'particular' && formData.cliente_particular_id && (
+                <>
+                  <div className="servicos__info-box servicos__info-box--auto">
+                    ℹ️ Dados preenchidos automaticamente do cadastro do cliente. Você pode editá-los se necessário.
+                  </div>
+                  <div className="servicos__form-row">
+                    <div className="servicos__form-group">
+                      <label htmlFor="cliente_particular_nome">Nome do Cliente</label>
+                      <input
+                        id="cliente_particular_nome"
+                        type="text"
+                        value={formData.cliente_final_nome}
+                        onChange={(e) => setFormData({ ...formData, cliente_final_nome: e.target.value })}
+                        placeholder="Nome do cliente"
+                      />
+                    </div>
+                    <div className="servicos__form-group">
+                      <label htmlFor="cliente_particular_contato">Contato do Cliente</label>
+                      <input
+                        id="cliente_particular_contato"
+                        type="text"
+                        value={formData.cliente_final_contato}
+                        onChange={(e) => setFormData({ ...formData, cliente_final_contato: formatTelefone(e.target.value) })}
+                        placeholder="(00) 00000-0000"
+                        maxLength="15"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* 3. Endereço */}
               <div className="servicos__form-row">

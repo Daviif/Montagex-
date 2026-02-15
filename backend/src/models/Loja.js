@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  return sequelize.define('Loja', {
+  const Loja = sequelize.define('Loja', {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
@@ -42,6 +42,21 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     tableName: 'lojas',
-    timestamps: false
+    timestamps: false,
+    hooks: {
+      // Hook após UPDATE: recalcula todos os serviços se porcentagem mudou
+      afterUpdate: async (loja, options) => {
+        const { recalcularServicosLoja } = require('../utils/recalculos');
+        const models = require('./index').models;
+        
+        // Verificar se usa_porcentagem ou porcentagem_repasse mudou
+        const changed = loja.changed();
+        if (changed && (changed.includes('usa_porcentagem') || changed.includes('porcentagem_repasse'))) {
+          await recalcularServicosLoja(loja.id, models);
+        }
+      }
+    }
   });
+
+  return Loja;
 };
