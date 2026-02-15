@@ -11,7 +11,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     equipe_id: {
       type: DataTypes.UUID,
-      allowNull: false
+      allowNull: true
     },
     horario_inicio: {
       type: DataTypes.TIME,

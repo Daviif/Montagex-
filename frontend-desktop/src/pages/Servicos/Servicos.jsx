@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   MdAdd,
   MdClose,
@@ -26,6 +26,7 @@ const Servicos = () => {
   const { data: produtos, loading: produtosLoading } = useApi('/produtos');
   const { data: servicoProdutos, loading: servicoProdutosLoading, refetch: refetchServicoProdutos } = useApi('/servico_produtos');
   const { data: servicoMontadores, loading: servicoMontadoresLoading, refetch: refetchServicoMontadores } = useApi('/servico_montadores');
+  const { data: rotaServicos, loading: rotaServicosLoading } = useApi('/rota_servicos');
 
   // UI State
   const [statusFilter, setStatusFilter] = useState('todos');
@@ -34,6 +35,7 @@ const Servicos = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
   const [tabProdutos, setTabProdutos] = useState([]);
   const [tabMontadores, setTabMontadores] = useState([]);
   const [searchProduto, setSearchProduto] = useState('');
@@ -101,6 +103,20 @@ const Servicos = () => {
     }
     return map;
   }, [produtos]);
+
+  // Map de serviços associados em rotas (para permitir/impedir deletar)
+  const servicoRotasCount = useMemo(() => {
+    const map = {};
+    if (rotaServicos) {
+      rotaServicos.forEach(rs => {
+        if (!map[rs.servico_id]) {
+          map[rs.servico_id] = [];
+        }
+        map[rs.servico_id].push(rs);
+      });
+    }
+    return map;
+  }, [rotaServicos]);
 
   // Filter servicos by status
   const filteredServicos = useMemo(() => {
@@ -376,6 +392,33 @@ const Servicos = () => {
     }));
   }, []);
 
+  // Auto-geocodificar quando campos de endereço mudam
+  useEffect(() => {
+    if (!showModal) return; // Só fazer geocodificação quando modal está aberto
+    
+    // Criar um timer para evitar fazer geocodificação a cada keystroke
+    const timer = setTimeout(() => {
+      if (formData.endereco_rua && formData.endereco_cidade) {
+        const enderecoCompleto = buildEnderecoExecucao(formData);
+        if (enderecoCompleto && enderecoCompleto.trim().length >= 5) {
+          geocodeAddress(enderecoCompleto);
+        }
+      }
+    }, 1000); // Aguardar 1 segundo após parar de digitar
+
+    return () => clearTimeout(timer);
+  }, [
+    formData.endereco_rua,
+    formData.endereco_numero,
+    formData.endereco_bairro,
+    formData.endereco_cidade,
+    formData.endereco_estado,
+    formData.endereco_cep,
+    showModal,
+    buildEnderecoExecucao,
+    geocodeAddress
+  ]);
+
   // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -498,11 +541,24 @@ const Servicos = () => {
   const handleDelete = async () => {
     if (!isAdmin) return;
     try {
+      setDeleteError(null);
       await api.delete(`/servicos/${showDeleteConfirm}`);
       setShowDeleteConfirm(null);
       refetchServicos();
     } catch (err) {
-      alert('Erro ao deletar: ' + err.message);
+      const errorData = err.response?.data;
+      if (errorData?.hasRotas) {
+        setDeleteError({
+          title: errorData.error,
+          message: errorData.message,
+          rotas: errorData.rotasCount
+        });
+      } else {
+        setDeleteError({
+          title: 'Erro ao deletar',
+          message: err.message
+        });
+      }
     }
   };
 
@@ -1145,26 +1201,81 @@ const Servicos = () => {
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
-        <div className="servicos__modal-overlay" onClick={() => setShowDeleteConfirm(null)}>
+        <div className="servicos__modal-overlay" onClick={() => { setShowDeleteConfirm(null); setDeleteError(null); }}>
           <div className="servicos__modal-content servicos__modal-small" onClick={(e) => e.stopPropagation()}>
             <div className="servicos__modal-header">
-              <h3>Confirmar Exclusão</h3>
+              <h3>
+                {deleteError ? '❌ Não é possível deletar' : '⚠️ Confirmar Exclusão'}
+              </h3>
             </div>
-            <p>Tem certeza que deseja deletar este serviço?</p>
-            <div className="servicos__modal-footer">
-              <button
-                className="servicos__btn servicos__btn--secondary"
-                onClick={() => setShowDeleteConfirm(null)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="servicos__btn servicos__btn--danger"
-                onClick={handleDelete}
-              >
-                Deletar
-              </button>
-            </div>
+            
+            {deleteError ? (
+              <>
+                <div style={{ padding: '20px 0', borderRadius: '8px' }}>
+                  <h4 style={{ marginBottom: '10px', color: '#d32f2f' }}>
+                    {deleteError.title}
+                  </h4>
+                  <p style={{ marginBottom: '15px', lineHeight: '1.5', color: '#555' }}>
+                    {deleteError.message}
+                  </p>
+                  {deleteError.rotas && (
+                    <div style={{ 
+                      backgroundColor: '#fff3e0', 
+                      border: '1px solid #ffe0b2', 
+                      borderRadius: '4px', 
+                      padding: '12px',
+                      marginTop: '10px'
+                    }}>
+                      <p style={{ margin: '0', fontSize: '14px', color: '#e65100' }}>
+                        ℹ️ Este serviço está associado a <strong>{deleteError.rotas} rota(s)</strong>
+                      </p>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#e65100' }}>
+                        Remova o serviço das rotas antes de tentar deletá-lo.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="servicos__modal-footer">
+                  <button
+                    className="servicos__btn servicos__btn--primary"
+                    onClick={() => { setShowDeleteConfirm(null); setDeleteError(null); }}
+                  >
+                    Entendi
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p>Tem certeza que deseja deletar este serviço?</p>
+                {servicoRotasCount[showDeleteConfirm] && servicoRotasCount[showDeleteConfirm].length > 0 && (
+                  <div style={{ 
+                    backgroundColor: '#ffebee', 
+                    border: '1px solid #ffcdd2', 
+                    borderRadius: '4px', 
+                    padding: '12px',
+                    marginTop: '12px'
+                  }}>
+                    <p style={{ margin: '0', fontSize: '13px', color: '#c62828' }}>
+                      ⚠️ <strong>Aviso:</strong> Este serviço está associado a <strong>{servicoRotasCount[showDeleteConfirm].length} rota(s)</strong>
+                    </p>
+                  </div>
+                )}
+                <div className="servicos__modal-footer">
+                  <button
+                    className="servicos__btn servicos__btn--secondary"
+                    onClick={() => { setShowDeleteConfirm(null); setDeleteError(null); }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className="servicos__btn servicos__btn--danger"
+                    onClick={handleDelete}
+                  >
+                    Deletar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
