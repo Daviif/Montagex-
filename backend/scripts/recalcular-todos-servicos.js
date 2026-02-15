@@ -2,7 +2,7 @@
  * Script para recalcular TODOS os valores_atribuido no banco
  * baseado na configuração atual das lojas
  * 
- * Uso: node recalcular-todos-servicos.js
+ * Uso: node scripts/recalcular-todos-servicos.js
  */
 
 const { Client } = require('pg');

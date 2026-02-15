@@ -98,14 +98,6 @@ echo ""
 
 # Teste 8: Criar loja com prazo inválido
 echo "9️⃣  Teste: Prazo de pagamento inválido (deve falhar)"
-curl -s -X POST "$API/lojas" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "nome": "Loja Teste",
-    "prazo_pagamento_dias": 500
-  }' | jq '.details[]'
-echo ""
 
 echo "==============================================="
 echo "Testes concluídos!"

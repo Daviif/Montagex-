@@ -1,9 +1,11 @@
 /**
  * Script de teste para validar recálculo automático
  * Simula alterações e verifica se valores são recalculados corretamente
+ * 
+ * Uso: node tests/test-recalculo.js
  */
 
-const { models } = require('./src/models');
+const { models } = require('../src/models');
 const { Op } = require('sequelize');
 
 async function testarRecalculoAutomatico() {
