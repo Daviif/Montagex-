@@ -17,6 +17,7 @@ import {
   MdRoute
 } from 'react-icons/md'
 import Card from '../../components/Card/Card'
+import { useAuth } from '../../contexts/AuthContext'
 import { useApi } from '../../hooks/useApi'
 import { useDate } from '../../hooks/useFormatters'
 import api from '../../services/api'
@@ -27,6 +28,8 @@ const Rotas = () => {
   const [filtroAtribuicao, setFiltroAtribuicao] = useState('todos') // 'todos', 'equipe', 'individual'
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isMapModalOpen, setIsMapModalOpen] = useState(false)
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
+  const [servicoToConcluir, setServicoToConcluir] = useState(null)
   const [rotaToMap, setRotaToMap] = useState(null)
   const [currentLocation, setCurrentLocation] = useState(null)
   const [localizationError, setLocalizationError] = useState(null)
@@ -50,12 +53,14 @@ const Rotas = () => {
   } = useApi('/rotas', 'GET', [])
   
   const { data: rotaServicosData } = useApi('/rota_servicos', 'GET', [])
-  const { data: servicosData } = useApi('/servicos', 'GET', [])
+  const { data: servicosData, refetch: refetchServicos } = useApi('/servicos', 'GET', [])
   const { data: equipesData } = useApi('/equipes', 'GET', [])
   const { data: usuariosData } = useApi('/usuarios', 'GET', [])
   const { data: servicoMontadoresData } = useApi('/servico_montadores', 'GET', [])
 
   const { formatDate } = useDate()
+  const { user } = useAuth()
+  const isAdmin = user?.tipo === 'admin'
 
   const servicosMap = useMemo(() => {
     return (servicosData || []).reduce((acc, servico) => {
@@ -303,6 +308,56 @@ const Rotas = () => {
     }
   }
 
+  const handleToggleStatus = async (rota, e) => {
+    e?.stopPropagation()
+    
+    const statusOptions = ['planejada', 'em_andamento', 'concluida', 'cancelada']
+    const currentIndex = statusOptions.indexOf(rota.status)
+    const nextStatus = statusOptions[(currentIndex + 1) % statusOptions.length]
+    
+    try {
+      await api.put(`/rotas/${rota.id}`, {
+        ...rota,
+        status: nextStatus
+      })
+      refetchRotas()
+    } catch (err) {
+      console.error('Erro ao alterar status:', err)
+    }
+  }
+
+  const handleConcluirServico = (servicoId, e) => {
+    e?.stopPropagation()
+    
+    if (!isAdmin) return
+    
+    setServicoToConcluir(servicoId)
+    setIsConfirmModalOpen(true)
+  }
+
+  const confirmConcluirServico = async () => {
+    if (!servicoToConcluir) return
+    
+    try {
+      // Apenas atualizar o status, sem enviar todos os campos
+      await api.put(`/servicos/${servicoToConcluir}`, {
+        status: 'concluido'
+      })
+      await refetchServicos()
+      await refetchRotas()
+      setIsConfirmModalOpen(false)
+      setServicoToConcluir(null)
+    } catch (err) {
+      console.error('Erro ao concluir serviço:', err)
+      alert('Erro ao marcar serviço como concluído')
+    }
+  }
+
+  const cancelConcluirServico = () => {
+    setIsConfirmModalOpen(false)
+    setServicoToConcluir(null)
+  }
+
   const handleViewMap = (rota) => {
     setRotaToMap(rota)
     setIsMapModalOpen(true)
@@ -488,8 +543,14 @@ const Rotas = () => {
                       </span>
                     </div>
                     <div className="rotas__card-info">
-                      {getStatusIcon(rota.status)}
-                      <span>{getStatusLabel(rota.status)}</span>
+                      <div 
+                        onClick={(e) => isAdmin && handleToggleStatus(rota, e)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: isAdmin ? 'pointer' : 'default' }}
+                        title={isAdmin ? 'Clique para alterar status' : ''}
+                      >
+                        {getStatusIcon(rota.status)}
+                        <span>{getStatusLabel(rota.status)}</span>
+                      </div>
                       <span className="rotas__card-divider">•</span>
                       <MdDirectionsCar />
                       <span>{rota.km_total ? `${rota.km_total} km` : '—'}</span>
@@ -545,23 +606,61 @@ const Rotas = () => {
                           const servico = servicosMap[rs.servico_id]
                           if (!servico) return null
 
+                          const isConcluido = servico.status === 'concluido'
+                          const lat = parseFloat(servico.latitude)
+                          const lng = parseFloat(servico.longitude)
+                          const semCoordenadas = isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0
+
                           return (
                             <div key={rs.id} className="rotas__servico-item">
                               <div className="rotas__servico-ordem">{index + 1}</div>
                               <div className="rotas__servico-content">
                                 <div className="rotas__servico-codigo">
                                   {servico.codigo_servico}
+                                  {semCoordenadas && !isConcluido && (
+                                    <span style={{ 
+                                      marginLeft: '0.5rem', 
+                                      fontSize: '0.75rem', 
+                                      color: '#f59e0b',
+                                      background: '#fef3c7',
+                                      padding: '0.125rem 0.375rem',
+                                      borderRadius: '3px'
+                                    }}>
+                                      ⚠️ Sem GPS
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="rotas__servico-endereco">
                                   {servico.endereco_execucao}
                                 </div>
-                                {rs.horario_previsto_chegada && (
-                                  <div className="rotas__servico-horario">
-                                    <MdAccessTime />
-                                    {rs.horario_previsto_chegada}
+                                <div className="rotas__servico-info">
+                                  {rs.horario_previsto_chegada && (
+                                    <div className="rotas__servico-horario">
+                                      <MdAccessTime />
+                                      {rs.horario_previsto_chegada}
+                                    </div>
+                                  )}
+                                  <div className="rotas__servico-status">
+                                    <span className={`rotas__badge rotas__badge--${servico.status}`}>
+                                      {servico.status}
+                                    </span>
                                   </div>
-                                )}
+                                </div>
                               </div>
+                              {isAdmin && !isConcluido && (
+                                <button
+                                  className="rotas__servico-btn-concluir"
+                                  onClick={(e) => handleConcluirServico(servico.id, e)}
+                                  title="Marcar como concluído"
+                                >
+                                  <MdCheckCircle />
+                                </button>
+                              )}
+                              {isConcluido && (
+                                <div className="rotas__servico-concluido">
+                                  <MdCheckCircle />
+                                </div>
+                              )}
                             </div>
                           )
                         })}
@@ -812,25 +911,43 @@ const Rotas = () => {
                   )
                 }
 
+                // DEBUG: Log dos serviços para diagnóstico
+                console.log('DEBUG - Serviços na rota:', rotaServicos.map(rs => {
+                  const servico = servicosMap[rs.servico_id]
+                  if (!servico) return { id: rs.servico_id, error: 'não encontrado' }
+                  return {
+                    id: servico.id,
+                    codigo: servico.codigo_servico,
+                    endereco: servico.endereco_execucao,
+                    status: servico.status,
+                    lat: servico.latitude,
+                    lng: servico.longitude,
+                    latParsed: parseFloat(servico.latitude),
+                    lngParsed: parseFloat(servico.longitude),
+                    latValid: !isNaN(parseFloat(servico.latitude)),
+                    lngValid: !isNaN(parseFloat(servico.longitude)),
+                    temCoordenadas: !isNaN(parseFloat(servico.latitude)) && !isNaN(parseFloat(servico.longitude))
+                  }
+                }))
+
                 // Filtrar serviços ainda não concluídos e com coordenadas
                 const proximosServicos = rotaServicos
                   .map((rs) => {
                     const servico = servicosMap[rs.servico_id]
                     
-                    // Validar se tem coordenadas válidas
-                    if (!servico || servico.latitude === null || servico.latitude === undefined || servico.latitude === '' ||
-                        servico.longitude === null || servico.longitude === undefined || servico.longitude === '') {
-                      return null
-                    }
-                    
-                    const lat = parseFloat(servico.latitude)
-                    const lng = parseFloat(servico.longitude)
-                    
-                    // Validar parseFloat
-                    if (isNaN(lat) || isNaN(lng)) return null
+                    if (!servico) return null
                     
                     // Filtrar apenas serviços não concluídos
                     if (servico.status === 'concluido' || servico.status === 'cancelado') {
+                      return null
+                    }
+                    
+                    // Validar se tem coordenadas válidas
+                    const lat = parseFloat(servico.latitude)
+                    const lng = parseFloat(servico.longitude)
+                    
+                    // Validar se as coordenadas são números válidos
+                    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
                       return null
                     }
                     
@@ -844,15 +961,83 @@ const Rotas = () => {
                     }
                   })
                   .filter(Boolean)
+                
+                // Contar serviços por categoria
+                const servicosConcluidos = rotaServicos.filter(rs => {
+                  const servico = servicosMap[rs.servico_id]
+                  return servico && (servico.status === 'concluido' || servico.status === 'cancelado')
+                }).length
+                
+                const servicosPendentes = rotaServicos.filter(rs => {
+                  const servico = servicosMap[rs.servico_id]
+                  return servico && servico.status !== 'concluido' && servico.status !== 'cancelado'
+                }).length
+                
+                const servicosSemCoordenadas = rotaServicos.filter(rs => {
+                  const servico = servicosMap[rs.servico_id]
+                  if (!servico) return false
+                  if (servico.status === 'concluido' || servico.status === 'cancelado') return false
+                  const lat = parseFloat(servico.latitude)
+                  const lng = parseFloat(servico.longitude)
+                  return isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0
+                }).length
+                
+                // Lista dos serviços sem coordenadas para exibir
+                const servicosSemCoordenadasDetalhes = rotaServicos
+                  .map(rs => {
+                    const servico = servicosMap[rs.servico_id]
+                    if (!servico) return null
+                    if (servico.status === 'concluido' || servico.status === 'cancelado') return null
+                    const lat = parseFloat(servico.latitude)
+                    const lng = parseFloat(servico.longitude)
+                    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) {
+                      return {
+                        codigo: servico.codigo_servico || `ID: ${servico.id?.slice(0, 8)}`,
+                        endereco: servico.endereco_execucao
+                      }
+                    }
+                    return null
+                  })
+                  .filter(Boolean)
 
                 if (proximosServicos.length === 0) {
-                  return (
-                    <div className="rotas__map-empty">
-                      <MdCheckCircle className="rotas__map-empty-icon" />
-                      <p>Todos os serviços desta rota foram concluídos!</p>
-                      <small>Excelente trabalho! 🎉</small>
-                    </div>
-                  )
+                  // Verificar se todos foram realmente concluídos ou se faltam coordenadas
+                  if (servicosConcluidos === rotaServicos.length) {
+                    return (
+                      <div className="rotas__map-empty">
+                        <MdCheckCircle className="rotas__map-empty-icon" />
+                        <p>Todos os serviços desta rota foram concluídos!</p>
+                        <small>Excelente trabalho! 🎉</small>
+                      </div>
+                    )
+                  } else if (servicosSemCoordenadas > 0) {
+                    return (
+                      <div className="rotas__map-empty">
+                        <MdMap className="rotas__map-empty-icon" />
+                        <p>Serviços pendentes sem coordenadas cadastradas</p>
+                        <small>{servicosPendentes} pendente(s) - {servicosSemCoordenadas} sem localização - {servicosConcluidos} concluído(s)</small>
+                        <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                          <strong>Serviços sem localização:</strong>
+                          <ul style={{ listStyle: 'none', padding: '0.5rem 0', margin: 0 }}>
+                            {servicosSemCoordenadasDetalhes.map((s, idx) => (
+                              <li key={idx} style={{ padding: '0.25rem 0' }}>
+                                📍 {s.codigo} - {s.endereco}
+                              </li>
+                            ))}
+                          </ul>
+                          <small>Cadastre a latitude e longitude destes serviços para visualizar no mapa</small>
+                        </div>
+                      </div>
+                    )
+                  } else {
+                    return (
+                      <div className="rotas__map-empty">
+                        <MdCheckCircle className="rotas__map-empty-icon" />
+                        <p>Todos os serviços desta rota foram concluídos!</p>
+                        <small>Excelente trabalho! 🎉</small>
+                      </div>
+                    )
+                  }
                 }
 
                 // Próximo serviço é sempre o primeiro da lista (já ordenado)
@@ -923,6 +1108,63 @@ const Rotas = () => {
                   </div>
                 )
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isConfirmModalOpen && servicoToConcluir && (
+        <div className="rotas__modal-backdrop" onClick={cancelConcluirServico}>
+          <div className="rotas__modal rotas__modal--confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="rotas__modal-header">
+              <h3>
+                <MdCheckCircle /> Confirmar Conclusão
+              </h3>
+              <button
+                type="button"
+                className="rotas__modal-close"
+                onClick={cancelConcluirServico}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="rotas__modal-body">
+              <div className="rotas__confirm-content">
+                <div className="rotas__confirm-icon">
+                  <MdCheckCircle />
+                </div>
+                <p className="rotas__confirm-text">
+                  Tem certeza que deseja marcar este serviço como <strong>concluído</strong>?
+                </p>
+                {servicosMap[servicoToConcluir] && (
+                  <div className="rotas__confirm-details">
+                    <div className="rotas__confirm-detail">
+                      <strong>Código:</strong> {servicosMap[servicoToConcluir].codigo_servico}
+                    </div>
+                    <div className="rotas__confirm-detail">
+                      <strong>Endereço:</strong> {servicosMap[servicoToConcluir].endereco_execucao}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rotas__modal-actions">
+                <button
+                  type="button"
+                  className="rotas__button rotas__button--ghost"
+                  onClick={cancelConcluirServico}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="rotas__button rotas__button--success"
+                  onClick={confirmConcluirServico}
+                >
+                  <MdCheckCircle /> Confirmar Conclusão
+                </button>
+              </div>
             </div>
           </div>
         </div>

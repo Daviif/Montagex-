@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
+const path = require('path');
 
 const apiRoutes = require('./routes');
 
@@ -13,6 +14,9 @@ app.use(cors());
 app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
+
+// Servir uploads estaticamente
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.use('/api', apiRoutes);
 

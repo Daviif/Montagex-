@@ -81,13 +81,13 @@ async function recalcularTodosServicos() {
 
         if (montadoresResult.rows.length > 0) {
           const totalMontadores = montadoresResult.rows.length;
-          const valorPorMontador = novoValorRepasse / totalMontadores;
+          const valorPorMontador = (novoValorRepasse / totalMontadores) / 2;
 
           for (const montador of montadoresResult.rows) {
             let novoValorMontador;
 
             if (montador.percentual_divisao != null && parseFloat(montador.percentual_divisao) > 0) {
-              novoValorMontador = (novoValorRepasse * parseFloat(montador.percentual_divisao)) / 100;
+              novoValorMontador = ((novoValorRepasse * parseFloat(montador.percentual_divisao)) / 100) / 2;
             } else {
               novoValorMontador = valorPorMontador;
             }

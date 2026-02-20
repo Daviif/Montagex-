@@ -1,0 +1,39 @@
+{
+  "name": "montagex-mobile",
+  "version": "1.0.0",
+  "description": "Sistema de Gestão de Montagem - Mobile App",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "node scripts/start-expo.js",
+    "start:online": "node scripts/start-expo.js --online",
+    "android": "node scripts/start-expo.js --android",
+    "ios": "node scripts/start-expo.js --ios",
+    "web": "node scripts/start-expo.js --web",
+    "eject": "expo eject",
+    "postinstall": "node scripts/patch-expo-node-externals.js"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.0.0",
+    "@react-navigation/bottom-tabs": "^6.5.11",
+    "@react-navigation/native": "^6.1.9",
+    "@react-navigation/native-stack": "^6.9.17",
+    "axios": "^1.6.2",
+    "date-fns": "^3.0.0",
+    "expo": "^54.0.0",
+    "expo-secure-store": "~12.8.1",
+    "expo-status-bar": "~1.11.1",
+    "react": "18.2.0",
+    "react-native": "0.73.6",
+    "react-native-chart-kit": "^6.12.0",
+    "react-native-paper": "^5.11.3",
+    "react-native-safe-area-context": "4.8.2",
+    "react-native-screens": "~3.29.0",
+    "react-native-svg": "14.1.0",
+    "react-native-vector-icons": "^10.0.2",
+    "socket.io-client": "^4.6.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  },
+  "private": true
+}

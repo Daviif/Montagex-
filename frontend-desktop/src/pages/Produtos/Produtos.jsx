@@ -173,6 +173,20 @@ const Produtos = () => {
     }
   }
 
+  const handleToggleStatus = async (produto) => {
+    if (!isAdmin) return
+
+    try {
+      await api.put(`/produtos/${produto.id}`, {
+        ...produto,
+        ativo: !produto.ativo
+      })
+      await refetchProdutos()
+    } catch (err) {
+      console.error('Erro ao alterar status:', err)
+    }
+  }
+
   return (
     <div className="produtos">
       <div className="produtos__header">
@@ -275,6 +289,9 @@ const Produtos = () => {
                             ? 'produtos__badge produtos__badge--active'
                             : 'produtos__badge produtos__badge--inactive'
                         }
+                        onClick={() => isAdmin && handleToggleStatus(produto)}
+                        style={{ cursor: isAdmin ? 'pointer' : 'default' }}
+                        title={isAdmin ? 'Clique para alterar status' : ''}
                       >
                         {produto.ativo ? 'Ativo' : 'Inativo'}
                       </span>

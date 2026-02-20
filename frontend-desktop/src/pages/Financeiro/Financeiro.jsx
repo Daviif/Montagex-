@@ -9,6 +9,7 @@ import {
   MdChevronRight
 } from 'react-icons/md'
 import Card from '../../components/Card/Card'
+import { useAuth } from '../../contexts/AuthContext'
 import { useApi } from '../../hooks/useApi'
 import { useCurrency, useDate } from '../../hooks/useFormatters'
 import api from '../../services/api'
@@ -56,6 +57,8 @@ const Financeiro = () => {
 
   const { formatDate } = useDate()
   const formatCurrency = useCurrency()
+  const { user } = useAuth()
+  const isAdmin = user?.tipo === 'admin'
 
   const isLoading = salariosLoading || recebimentosLoading || pagamentosLoading || despesasLoading
 
@@ -383,6 +386,38 @@ const Financeiro = () => {
     }
   }
 
+  const handleToggleRecebimentoStatus = async (recebimento) => {
+    const newStatus = recebimento.status === 'pendente' ? 'recebido' : 'pendente'
+    const dataRecebimento = newStatus === 'recebido' ? new Date().toISOString().split('T')[0] : null
+
+    try {
+      await api.put(`/recebimentos/${recebimento.id}`, {
+        ...recebimento,
+        status: newStatus,
+        data_recebimento: dataRecebimento
+      })
+      refetchRecebimentos()
+    } catch (err) {
+      console.error('Erro ao alterar status:', err)
+    }
+  }
+
+  const handleTogglePagamentoStatus = async (pagamento) => {
+    const newStatus = pagamento.status === 'pendente' ? 'pago' : 'pendente'
+    const dataPagamento = newStatus === 'pago' ? new Date().toISOString().split('T')[0] : null
+
+    try {
+      await api.put(`/pagamentos_funcionarios/${pagamento.id}`, {
+        ...pagamento,
+        status: newStatus,
+        data_pagamento: dataPagamento
+      })
+      window.location.reload()
+    } catch (err) {
+      console.error('Erro ao alterar status:', err)
+    }
+  }
+
   const handleDespesaSubmit = async (event) => {
     event.preventDefault()
 
@@ -611,7 +646,12 @@ const Financeiro = () => {
                   {recebimentosList.map((item) => (
                     <tr key={item.id}>
                       <td>
-                        <span className={`financeiro__status financeiro__status--${item.status || 'pendente'}`}>
+                        <span 
+                          className={`financeiro__status financeiro__status--${item.status || 'pendente'}`}
+                          onClick={() => isAdmin && handleToggleRecebimentoStatus(item)}
+                          style={{ cursor: isAdmin ? 'pointer' : 'default' }}
+                          title={isAdmin ? 'Clique para alterar status' : ''}
+                        >
                           {item.status || 'pendente'}
                         </span>
                       </td>
@@ -651,7 +691,12 @@ const Financeiro = () => {
                     <tr key={item.id}>
                       <td>{usuariosMap[item.usuario_id]?.nome || 'Não informado'}</td>
                       <td>
-                        <span className={`financeiro__status financeiro__status--${item.status || 'pendente'}`}>
+                        <span 
+                          className={`financeiro__status financeiro__status--${item.status || 'pendente'}`}
+                          onClick={() => isAdmin && handleTogglePagamentoStatus(item)}
+                          style={{ cursor: isAdmin ? 'pointer' : 'default' }}
+                          title={isAdmin ? 'Clique para alterar status' : ''}
+                        >
                           {item.status || 'pendente'}
                         </span>
                       </td>

@@ -310,17 +310,94 @@
   color: var(--text-secondary, #6b7280);
 }
 
+.rotas__servico-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
 .rotas__servico-horario {
   display: flex;
   align-items: center;
   gap: 0.25rem;
   font-size: 0.85rem;
   color: var(--text-tertiary, #9ca3af);
-  margin-top: 0.25rem;
 }
 
 .rotas__servico-horario svg {
   font-size: 1rem;
+}
+
+.rotas__servico-status {
+  display: flex;
+  align-items: center;
+}
+
+.rotas__servico-btn-concluir {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--success, #10b981);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.rotas__servico-btn-concluir:hover {
+  background: var(--success-dark, #059669);
+  transform: scale(1.05);
+}
+
+.rotas__servico-btn-concluir svg {
+  font-size: 1.25rem;
+}
+
+.rotas__servico-concluido {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--success, #10b981);
+  flex-shrink: 0;
+}
+
+.rotas__servico-concluido svg {
+  font-size: 1.5rem;
+}
+
+.rotas__badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.rotas__badge--agendado {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.rotas__badge--em_rota {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.rotas__badge--concluido {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.rotas__badge--cancelado {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 /* Modal Styles */
@@ -547,6 +624,70 @@
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+/* Confirm Modal Styles */
+.rotas__modal--confirm {
+  max-width: 500px;
+}
+
+.rotas__confirm-content {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.rotas__confirm-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.rotas__confirm-icon svg {
+  font-size: 4rem;
+  color: var(--success, #10b981);
+}
+
+.rotas__confirm-text {
+  font-size: 1.1rem;
+  color: var(--text-primary, #1f2937);
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.rotas__confirm-details {
+  background: var(--background-secondary, #f3f4f6);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: left;
+  margin-top: 1rem;
+}
+
+.rotas__confirm-detail {
+  padding: 0.5rem 0;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.9rem;
+}
+
+.rotas__confirm-detail:not(:last-child) {
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.rotas__confirm-detail strong {
+  color: var(--text-primary, #1f2937);
+  margin-right: 0.5rem;
+}
+
+.rotas__button--success {
+  background: var(--success, #10b981);
+  color: white;
+}
+
+.rotas__button--success:hover {
+  background: var(--success-dark, #059669);
+}
+
+.rotas__button--success svg {
+  margin-right: 0.5rem;
 }
 
 /* Map Modal Styles */

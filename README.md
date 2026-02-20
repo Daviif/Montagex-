@@ -19,8 +19,8 @@ Montagex é uma plataforma integrada que auxilia empresas de manutenção e mont
 ┌─────────────────────────────────────────────────────┐
 │                   CLIENTE                            │
 ├──────────────────────┬──────────────────────────────┤
-│  Frontend Desktop    │  Mobile (futuro)             │
-│  (React + Electron)  │  (React Native)              │
+│  Frontend Desktop    │  Mobile                      │
+│  (React + Electron)  │  (React Native + Expo)       │
 └──────────────────────┴──────────────────────────────┘
            │                    │
            └──────────┬─────────┘
@@ -62,7 +62,18 @@ Montagex-/
 │   ├── vite.config.js
 │   └── README.md
 │
-├── mobile/                     # 📱 App Mobile (futuro)
+├── mobile/                     # 📱 App Mobile (React Native + Expo)
+│   ├── src/
+│   │   ├── screens/           # Telas
+│   │   ├── components/        # Componentes
+│   │   ├── contexts/          # Auth, Theme
+│   │   ├── services/          # API, Socket
+│   │   └── navigation/        # Navegação
+│   ├── App.js
+│   ├── app.json
+│   ├── package.json
+│   ├── README.md
+│   └── QUICK-START.md
 │
 ├── database/                   # 🗄️ Schemas SQL
 │   ├── schema.sql             # Schema principal
@@ -307,7 +318,7 @@ Propripietary - Todos os direitos reservados
 
 - **Backend:** Node.js + Express + PostgreSQL
 - **Frontend:** React + Vite + Electron
-- **Mobile:** React Native (planejado)
+- **Mobile:** React Native + Expo
 - **DevOps:** Docker + CI/CD (planejado)
 
 ---

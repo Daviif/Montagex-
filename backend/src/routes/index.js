@@ -6,6 +6,7 @@ const dashboardRoutes = require('./dashboard');
 const dashboardSalariosRoutes = require('./dashboardSalarios');
 const lojasRoutes = require('./lojas');
 const servicosRoutes = require('./servicos');
+const anexosRoutes = require('./anexos');
 const { models } = require('../models');
 
 const router = express.Router();
@@ -29,6 +30,9 @@ router.use('/lojas', lojasRoutes);
 
 // Rota customizada de servicos (com validação de foreign keys)
 router.use('/servicos', servicosRoutes);
+
+// Rota de anexos de serviços
+router.use('/anexos', anexosRoutes);
 
 const routeMap = {
   usuarios: models.Usuario,

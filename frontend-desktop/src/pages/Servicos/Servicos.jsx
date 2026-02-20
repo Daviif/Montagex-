@@ -27,6 +27,7 @@ const Servicos = () => {
   const { data: servicoProdutos, loading: servicoProdutosLoading, refetch: refetchServicoProdutos } = useApi('/servico_produtos');
   const { data: servicoMontadores, loading: servicoMontadoresLoading, refetch: refetchServicoMontadores } = useApi('/servico_montadores');
   const { data: rotaServicos, loading: rotaServicosLoading } = useApi('/rota_servicos');
+  const { data: equipes, loading: equipesLoading } = useApi('/equipes');
 
   // UI State
   const [statusFilter, setStatusFilter] = useState('todos');
@@ -40,6 +41,10 @@ const Servicos = () => {
   const [tabMontadores, setTabMontadores] = useState([]);
   const [searchProduto, setSearchProduto] = useState('');
   const [categoriaProduto, setCategoriaProduto] = useState('');
+  const [tipoAtribuicao, setTipoAtribuicao] = useState('individual'); // 'individual' ou 'equipe'
+  const [equipeSelecionada, setEquipeSelecionada] = useState('');
+  const [anexos, setAnexos] = useState([]);
+  const [uploadingAnexo, setUploadingAnexo] = useState(false);
   const [formData, setFormData] = useState({
     data_servico: '',
     tipo_cliente: 'loja',
@@ -243,9 +248,27 @@ const Servicos = () => {
       cliente_final_contato: servico.cliente_final_contato || '',
       codigo_os_loja: servico.codigo_os_loja || ''
     });
+    
+    const montadores = getServicoMontadores(servico.id);
     setTabProdutos(getServicoProdutos(servico.id));
-    setTabMontadores(getServicoMontadores(servico.id));
+    setTabMontadores(montadores);
+    
+    // Detectar tipo de atribuição
+    if (montadores && montadores.length > 0) {
+      const temEquipe = montadores.some(m => m.equipe_id);
+      const temIndividual = montadores.some(m => m.usuario_id && !m.equipe_id);
+      
+      if (temEquipe) {
+        setTipoAtribuicao('equipe');
+        setEquipeSelecionada(montadores.find(m => m.equipe_id)?.equipe_id || '');
+      } else if (temIndividual) {
+        setTipoAtribuicao('individual');
+        setEquipeSelecionada('');
+      }
+    }
+    
     setEditingId(servico.id);
+    carregarAnexos(servico.id);
     setShowModal(true);
   }, [getServicoProdutos, getServicoMontadores]);
 
@@ -275,30 +298,52 @@ const Servicos = () => {
     });
     setTabProdutos([]);
     setTabMontadores([]);
+    setTipoAtribuicao('individual');
+    setEquipeSelecionada('');
     setEditingId(null);
     setShowModal(true);
   }, []);
 
   // Geocodificar endereço
   const geocodeAddress = useCallback(async (address) => {
-    if (!address || address.trim().length < 5) return;
+    if (!address || address.trim().length < 5) {
+      console.log('Endereço muito curto para geocodificação:', address);
+      return;
+    }
+    
+    console.log('🌍 Buscando coordenadas para:', address);
     
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`
-      );
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+      console.log('📡 URL da API:', url);
+      
+      const response = await fetch(url);
       const data = await response.json();
+      
+      console.log('📥 Resposta da API:', data);
       
       if (data && data.length > 0) {
         const { lat, lon } = data[0];
+        const latitude = parseFloat(lat).toFixed(6);
+        const longitude = parseFloat(lon).toFixed(6);
+        
+        console.log('✅ Coordenadas encontradas:', { latitude, longitude });
+        
         setFormData(prev => ({
           ...prev,
-          latitude: parseFloat(lat).toFixed(6),
-          longitude: parseFloat(lon).toFixed(6)
+          latitude,
+          longitude
         }));
+        
+        // Feedback visual
+        alert(`✅ Coordenadas encontradas!\nLatitude: ${latitude}\nLongitude: ${longitude}`);
+      } else {
+        console.warn('⚠️ Nenhuma coordenada encontrada para o endereço');
+        alert('⚠️ Não foi possível encontrar as coordenadas para este endereço. Verifique se o endereço está correto.');
       }
     } catch (err) {
-      console.error('Erro ao geocodificar endereço:', err);
+      console.error('❌ Erro ao geocodificar endereço:', err);
+      alert('❌ Erro ao buscar coordenadas. Verifique sua conexão com a internet.');
     }
   }, []);
 
@@ -487,41 +532,57 @@ const Servicos = () => {
           (existingMontadores.data || []).map((item) => api.delete(`/servico_montadores/${item.id}`))
         );
 
-        // Filtrar montadores válidos e remover duplicatas
-        const montadoresValidos = tabMontadores.filter((montador) => montador.usuario_id);
+        // Filtrar montadores válidos
+        let montadoresPayload = [];
         
-        // Remover duplicatas baseado em usuario_id (manter apenas o primeiro)
-        const montadoresUnicos = montadoresValidos.reduce((acc, montador) => {
-          if (!acc.find(m => m.usuario_id === montador.usuario_id)) {
-            acc.push(montador);
+        if (tipoAtribuicao === 'individual') {
+          // Atribuição individual
+          const montadoresValidos = tabMontadores.filter((montador) => montador.usuario_id);
+          
+          // Remover duplicatas baseado em usuario_id
+          const montadoresUnicos = montadoresValidos.reduce((acc, montador) => {
+            if (!acc.find(m => m.usuario_id === montador.usuario_id)) {
+              acc.push(montador);
+            }
+            return acc;
+          }, []);
+          
+          const totalPercentual = montadoresUnicos.reduce(
+            (acc, montador) => acc + Number(montador.percentual_divisao || 0),
+            0
+          );
+          const valorPorMontador = montadoresUnicos.length > 0
+            ? Number((repasseBase / montadoresUnicos.length).toFixed(2))
+            : 0;
+
+          montadoresPayload = montadoresUnicos.map((montador) => {
+            const percentual = Number(montador.percentual_divisao || 0);
+            const valorCalculado = percentual > 0
+              ? (repasseBase * percentual) / 100
+              : valorPorMontador;
+            const valorManual = Number(montador.valor_atribuido || 0);
+            const valorFinal = valorManual > 0 ? valorManual : valorCalculado;
+
+            return {
+              servico_id: servicoId,
+              usuario_id: montador.usuario_id,
+              valor_atribuido: Number(valorFinal.toFixed(2)),
+              papel: montador.papel || 'principal',
+              percentual_divisao: percentual > 0 ? percentual : null
+            };
+          });
+        } else if (tipoAtribuicao === 'equipe') {
+          // Atribuição por equipe
+          const equipeValida = tabMontadores.find((montador) => montador.equipe_id);
+          if (equipeValida) {
+            montadoresPayload = [{
+              servico_id: servicoId,
+              equipe_id: equipeValida.equipe_id,
+              valor_atribuido: Number(repasseBase.toFixed(2)),
+              papel: 'principal'
+            }];
           }
-          return acc;
-        }, []);
-        
-        const totalPercentual = montadoresUnicos.reduce(
-          (acc, montador) => acc + Number(montador.percentual_divisao || 0),
-          0
-        );
-        const valorPorMontador = montadoresUnicos.length > 0
-          ? Number((repasseBase / montadoresUnicos.length).toFixed(2))
-          : 0;
-
-        const montadoresPayload = montadoresUnicos.map((montador) => {
-          const percentual = Number(montador.percentual_divisao || 0);
-          const valorCalculado = percentual > 0
-            ? (repasseBase * percentual) / 100
-            : valorPorMontador;
-          const valorManual = Number(montador.valor_atribuido || 0);
-          const valorFinal = valorManual > 0 ? valorManual : valorCalculado;
-
-          return {
-            servico_id: servicoId,
-            usuario_id: montador.usuario_id,
-            valor_atribuido: Number(valorFinal.toFixed(2)),
-            papel: montador.papel || 'principal',
-            percentual_divisao: percentual > 0 ? percentual : null
-          };
-        });
+        }
 
         if (montadoresPayload.length > 0) {
           await Promise.all(montadoresPayload.map((payload) => api.post('/servico_montadores', payload)));
@@ -600,6 +661,54 @@ const Servicos = () => {
     const updated = [...tabMontadores];
     updated[idx][field] = value;
     setTabMontadores(updated);
+  };
+
+  // Anexos
+  const carregarAnexos = useCallback((servicoId) => {
+    api.get(`/anexos/servicos/${servicoId}/anexos`)
+      .then(res => setAnexos(res.data || []))
+      .catch(err => console.error('Erro ao carregar anexos:', err));
+  }, []);
+
+  const handleUploadAnexo = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !editingId) return;
+
+    setUploadingAnexo(true);
+    const formData = new FormData();
+    formData.append('arquivo', files[0]);
+    formData.append('descricao', '');
+
+    try {
+      await api.post(`/anexos/servicos/${editingId}/anexos`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      carregarAnexos(editingId);
+      e.target.value = '';
+    } catch (err) {
+      console.error('Erro ao fazer upload:', err);
+      alert('Erro ao fazer upload: ' + err.message);
+    } finally {
+      setUploadingAnexo(false);
+    }
+  };
+
+  const handleRemoveAnexo = async (anexoId) => {
+    if (!window.confirm('Deseja remover este anexo?')) return;
+
+    try {
+      await api.delete(`/anexos/anexos/${anexoId}`);
+      setAnexos(anexos.filter(a => a.id !== anexoId));
+    } catch (err) {
+      alert('Erro ao remover anexo: ' + err.message);
+    }
+  };
+
+  const handleDownloadAnexo = (anexo) => {
+    const link = document.createElement('a');
+    link.href = anexo.caminho_arquivo;
+    link.download = anexo.nome_arquivo;
+    link.click();
   };
 
   const loading = servicosLoading || lojasLoading || particularLoading || usuariosLoading || 
@@ -983,43 +1092,129 @@ const Servicos = () => {
                 </div>
               </div>
 
-              {/* 4. Atribuição + Montador */}
+              {/* Coordenadas GPS */}
               <div className="servicos__form-row">
                 <div className="servicos__form-group">
-                  <label htmlFor="atribuicao">Atribuição</label>
+                  <label htmlFor="latitude">
+                    Latitude
+                    {formData.latitude && <span style={{ marginLeft: '0.5rem', color: '#10b981', fontSize: '0.85rem' }}>✓ GPS OK</span>}
+                    {!formData.latitude && <span style={{ marginLeft: '0.5rem', color: '#f59e0b', fontSize: '0.85rem' }}>⚠️ Sem GPS</span>}
+                  </label>
                   <input
-                    id="atribuicao"
+                    id="latitude"
                     type="text"
-                    value="Montador Individual"
-                    disabled
-                    readOnly
+                    value={formData.latitude}
+                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                    placeholder="Ex: -23.550520"
                   />
                 </div>
                 <div className="servicos__form-group">
-                  <label htmlFor="montador_select">Montador</label>
-                  <select
-                    id="montador_select"
-                    value={tabMontadores[0]?.usuario_id || ''}
-                    onChange={(e) => {
-                      if (tabMontadores.length === 0) {
-                        setTabMontadores([{ usuario_id: e.target.value, valor_atribuido: 0, papel: 'principal' }]);
+                  <label htmlFor="longitude">Longitude</label>
+                  <input
+                    id="longitude"
+                    type="text"
+                    value={formData.longitude}
+                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                    placeholder="Ex: -46.633308"
+                  />
+                </div>
+                <div className="servicos__form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="servicos__button servicos__button--geocode"
+                    onClick={() => {
+                      const endereco = buildEnderecoExecucao(formData);
+                      if (endereco) {
+                        geocodeAddress(endereco);
                       } else {
-                        const updated = [...tabMontadores];
-                        updated[0].usuario_id = e.target.value;
-                        setTabMontadores(updated);
+                        alert('Preencha o endereço completo primeiro');
+                      }
+                    }}
+                    title="Buscar coordenadas do endereço"
+                  >
+                    📍 Buscar GPS
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. Atribuição + Montador/Equipe */}
+              <div className="servicos__form-row">
+                <div className="servicos__form-group">
+                  <label htmlFor="atribuicao">Atribuição</label>
+                  <select
+                    id="atribuicao"
+                    value={tipoAtribuicao}
+                    onChange={(e) => {
+                      const tipo = e.target.value;
+                      setTipoAtribuicao(tipo);
+                      if (tipo === 'individual') {
+                        setEquipeSelecionada('');
+                        if (tabMontadores.length === 0) {
+                          setTabMontadores([{ usuario_id: '', valor_atribuido: 0, papel: 'principal' }]);
+                        }
+                      } else {
+                        // Limpar montadores quando mudar para equipe
+                        setTabMontadores([]);
+                        setEquipeSelecionada('');
                       }
                     }}
                   >
-                    <option value="">Selecionar...</option>
-                    {usuarios
-                      ?.filter(u => u.tipo === 'montador')
-                      .map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.nome}
-                        </option>
-                      ))}
+                    <option value="individual">Montador Individual</option>
+                    <option value="equipe">Equipe</option>
                   </select>
                 </div>
+                
+                {tipoAtribuicao === 'individual' ? (
+                  <div className="servicos__form-group">
+                    <label htmlFor="montador_select">Montador</label>
+                    <select
+                      id="montador_select"
+                      value={tabMontadores[0]?.usuario_id || ''}
+                      onChange={(e) => {
+                        if (tabMontadores.length === 0) {
+                          setTabMontadores([{ usuario_id: e.target.value, valor_atribuido: 0, papel: 'principal' }]);
+                        } else {
+                          const updated = [...tabMontadores];
+                          updated[0].usuario_id = e.target.value;
+                          setTabMontadores(updated);
+                        }
+                      }}
+                    >
+                      <option value="">Selecionar...</option>
+                      {usuarios
+                        ?.filter(u => u.tipo === 'montador')
+                        .map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.nome}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="servicos__form-group">
+                    <label htmlFor="equipe_select">Equipe</label>
+                    <select
+                      id="equipe_select"
+                      value={equipeSelecionada}
+                      onChange={(e) => {
+                        const equipaId = e.target.value;
+                        setEquipeSelecionada(equipaId);
+                        if (equipaId) {
+                          setTabMontadores([{ equipe_id: equipaId, valor_atribuido: 0, papel: 'principal' }]);
+                        } else {
+                          setTabMontadores([]);
+                        }
+                      }}
+                    >
+                      <option value="">Selecionar...</option>
+                      {equipes?.map(eq => (
+                        <option key={eq.id} value={eq.id}>
+                          {eq.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* 5. Status */}
@@ -1165,7 +1360,63 @@ const Servicos = () => {
                 />
               </div>
 
-              {/* 8. Total + Botões */}
+              {/* 8. Anexos */}
+              {editingId && (
+                <div className="servicos__form-section">
+                  <h3 className="servicos__section-title">📎 Anexos</h3>
+                  
+                  <div className="servicos__anexos-upload">
+                    <label htmlFor="arquivo-input" className="servicos__btn servicos__btn--primary" style={{ cursor: 'pointer' }}>
+                      📤 Fazer Upload
+                    </label>
+                    <input
+                      id="arquivo-input"
+                      type="file"
+                      onChange={handleUploadAnexo}
+                      disabled={uploadingAnexo}
+                      style={{ display: 'none' }}
+                    />
+                    {uploadingAnexo && <span style={{ marginLeft: '10px', color: '#666' }}>Enviando...</span>}
+                  </div>
+
+                  {anexos.length > 0 ? (
+                    <div className="servicos__anexos-list">
+                      {anexos.map((anexo) => (
+                        <div key={anexo.id} className="servicos__anexo-item">
+                          <div className="servicos__anexo-info">
+                            <span className="servicos__anexo-name">📄 {anexo.nome_arquivo}</span>
+                            <span className="servicos__anexo-size">
+                              ({(anexo.tamanho_bytes / 1024).toFixed(2)} KB)
+                            </span>
+                          </div>
+                          <div className="servicos__anexo-actions">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadAnexo(anexo)}
+                              className="servicos__btn-icon"
+                              title="Download"
+                            >
+                              ⬇️
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAnexo(anexo.id)}
+                              className="servicos__btn-icon servicos__btn-icon--danger"
+                              title="Remover"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="servicos__no-items">Nenhum anexo adicionado.</p>
+                  )}
+                </div>
+              )}
+
+              {/* 9. Total + Botões */}
               <div className="servicos__form-footer">
                 <div className="servicos__total">
                   <span className="servicos__total-label">Total (R$):</span>
