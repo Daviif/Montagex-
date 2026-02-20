@@ -1,8 +1,11 @@
 import React from 'react'
-import { MdSearch, MdNotifications } from 'react-icons/md'
+import { MdSearch, MdNotifications, MdDarkMode, MdLightMode } from 'react-icons/md'
+import { useTheme } from '../../contexts/ThemeContext'
 import './Header.css'
 
 const Header = () => {
+  const { theme, toggleTheme } = useTheme()
+
   return (
     <header className="header">
       <div className="header-search">
@@ -15,6 +18,14 @@ const Header = () => {
       </div>
 
       <div className="header-actions">
+        <button className="theme-btn" onClick={toggleTheme} title="Alternar tema">
+          {theme === 'light' ? (
+            <MdDarkMode className="theme-icon" />
+          ) : (
+            <MdLightMode className="theme-icon" />
+          )}
+        </button>
+
         <button className="notification-btn">
           <MdNotifications className="notification-icon" />
           <span className="notification-badge">3</span>

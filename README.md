@@ -151,14 +151,11 @@ npm run dev
 - [x] Integração com API
 
 ### 🚧 Em Desenvolvimento
-- [ ] CRUD de Serviços
-- [ ] CRUD de Clientes
-- [ ] CRUD de Produtos
-- [ ] Gestão de Equipe
-- [ ] Planejamento de Rotas
-- [ ] Dashboard Financeiro
-- [ ] Sistema de Relatórios
-- [ ] Configurações
+- [ ] Sistema de Relatórios (Desktop)
+- [ ] Configurações (Desktop)
+- [ ] CRUD/Telas de Novo Serviço (Mobile)
+- [ ] CRUD/Telas de Equipes (Mobile)
+- [ ] CRUD/Telas de Financeiro (Mobile)
 
 ## 📊 Tecnologias
 
@@ -335,12 +332,12 @@ Propripietary - Todos os direitos reservados
 ### v1.1 (1-2 meses)
 - [ ] CRUD completo de todas as entidades
 - [ ] Relatórios detalhados
-- [ ] Mobile app inicial
+- [x] Mobile app inicial
 
 ### v1.2
 - [ ] Modo offline
 - [ ] Sincronização automática
-- [ ] Dark mode completo
+- [x] Dark mode completo
 
 ### v2.0
 - [ ] AI/ML para otimização de rotas
