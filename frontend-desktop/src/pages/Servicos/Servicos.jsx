@@ -425,6 +425,7 @@ const Servicos = () => {
 
     // Parse endereço existente (formato: "Rua, Número, Complemento, Bairro, Cidade, Estado, CEP")
     const enderecoParts = (cliente.endereco || '').split(',').map(part => part.trim());
+    const hasBairro = enderecoParts.length >= 7;
 
     const novosDados = {
       cliente_particular_id: clienteId,
@@ -433,10 +434,10 @@ const Servicos = () => {
       endereco_rua: enderecoParts[0] || '',
       endereco_numero: enderecoParts[1] || '',
       endereco_complemento: enderecoParts[2] || '',
-      endereco_bairro: enderecoParts[3] || '',
-      endereco_cidade: enderecoParts[4] || '',
-      endereco_estado: enderecoParts[5] || '',
-      endereco_cep: enderecoParts[6] || ''
+      endereco_bairro: hasBairro ? (enderecoParts[3] || '') : '',
+      endereco_cidade: hasBairro ? (enderecoParts[4] || '') : (enderecoParts[3] || ''),
+      endereco_estado: hasBairro ? (enderecoParts[5] || '') : (enderecoParts[4] || ''),
+      endereco_cep: hasBairro ? (enderecoParts[6] || '') : (enderecoParts[5] || '')
     };
 
     setFormData(prev => ({
