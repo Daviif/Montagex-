@@ -7,6 +7,15 @@ const dashboardSalariosRoutes = require('./dashboardSalarios');
 const lojasRoutes = require('./lojas');
 const servicosRoutes = require('./servicos');
 const anexosRoutes = require('./anexos');
+const perfilRoutes = require('./perfil');
+const {
+  requireAdmin,
+  authorizeResource,
+  filterPagamentosForMontador,
+  sanitizePagamentosResponse,
+  validatePagamentoOwnership,
+  sanitizePagamentoById
+} = require('../middleware/permissions');
 const { models } = require('../models');
 
 const router = express.Router();
@@ -22,11 +31,14 @@ router.use('/auth', authRoutes);
 router.use(authMiddleware);
 
 // Rotas de dashboard
-router.use('/dashboard/salarios', dashboardSalariosRoutes);
+router.use('/dashboard/salarios', requireAdmin('Apenas administradores podem acessar salários'), dashboardSalariosRoutes);
 router.use('/dashboard', dashboardRoutes);
 
+// Perfil do usuário autenticado
+router.use('/perfil', perfilRoutes);
+
 // Rota customizada de lojas (com recálculo automático)
-router.use('/lojas', lojasRoutes);
+router.use('/lojas', authorizeResource('lojas'), lojasRoutes);
 
 // Rota customizada de servicos (com validação de foreign keys)
 router.use('/servicos', servicosRoutes);
@@ -53,7 +65,23 @@ const routeMap = {
 };
 
 Object.entries(routeMap).forEach(([path, model]) => {
-  router.use(`/${path}`, createCrudRouter(model));
+  const resourceMiddleware = authorizeResource(path);
+
+  if (path === 'pagamentos_funcionarios') {
+    router.use(
+      `/${path}`,
+      resourceMiddleware,
+      createCrudRouter(model, {
+        beforeGetAll: filterPagamentosForMontador,
+        afterGetAll: sanitizePagamentosResponse,
+        beforeGetById: validatePagamentoOwnership,
+        afterGetById: sanitizePagamentoById
+      })
+    );
+    return;
+  }
+
+  router.use(`/${path}`, resourceMiddleware, createCrudRouter(model));
 });
 
 module.exports = router;

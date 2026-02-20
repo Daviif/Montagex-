@@ -12,6 +12,7 @@ import {
 } from 'react-icons/md'
 import { FaBox } from 'react-icons/fa'
 import { useAuth } from '../../contexts/AuthContext'
+import api from '../../services/api'
 import './Sidebar.css'
 
 const menuItems = [
@@ -58,7 +59,7 @@ const menuItems = [
 ]
 
 const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: false } }) => {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
 
   const getConnectionStatus = () => {
     if (isOffline) {
@@ -90,6 +91,15 @@ const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: fal
 
   const connectionStatus = getConnectionStatus()
 
+  const avatarUrl = (() => {
+    if (!user?.foto_perfil) return null
+    if (user.foto_perfil.startsWith('http')) return user.foto_perfil
+
+    const apiBase = api.defaults.baseURL || '/api'
+    const baseWithoutApi = apiBase.replace(/\/api\/?$/, '')
+    return `${baseWithoutApi}${user.foto_perfil}`
+  })()
+
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
@@ -115,21 +125,25 @@ const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: fal
       </nav>
 
       <div className="sidebar-footer">
-        <div className="user-info">
+        <NavLink to="/perfil" className="user-info user-info--link" title="Abrir perfil">
           <div className="user-avatar">
-            {user?.nome?.charAt(0).toUpperCase() || 'U'}
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" className="user-avatar-image" />
+            ) : (
+              user?.nome?.charAt(0).toUpperCase() || 'U'
+            )}
           </div>
           <div className="user-details">
             <div className="user-name">{user?.nome || 'Usuário'}</div>
             <div className="user-role">
-              {user?.tipo_usuario === 'admin' ? 'Administrador' : 'Montador'}
+              {user?.tipo === 'admin' ? 'Administrador' : 'Montador'}
             </div>
             <div className="user-status">
               <span className={connectionStatus.dotClass}></span>
               <span className="status-text">{connectionStatus.text}</span>
             </div>
           </div>
-        </div>
+        </NavLink>
       </div>
     </aside>
   )

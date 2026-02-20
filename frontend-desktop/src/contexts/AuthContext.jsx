@@ -104,13 +104,26 @@ export const AuthProvider = ({ children }) => {
     navigate('/login')
   }
 
+  const updateUser = (nextUserData) => {
+    setUser((currentUser) => {
+      const mergedUser = {
+        ...(currentUser || {}),
+        ...(nextUserData || {})
+      }
+
+      localStorage.setItem('@Montagex:user', JSON.stringify(mergedUser))
+      return mergedUser
+    })
+  }
+
   return (
     <AuthContext.Provider value={{
       signed: !!user,
       user,
       loading,
       signIn,
-      signOut
+      signOut,
+      updateUser
     }}>
       {children}
     </AuthContext.Provider>

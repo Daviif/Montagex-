@@ -64,6 +64,8 @@ const Rotas = () => {
   const { formatDate } = useDate()
   const { user } = useAuth()
   const isAdmin = user?.tipo === 'admin'
+  const isMontador = user?.tipo === 'montador'
+  const canUpdateServico = isAdmin || isMontador
 
   const servicosMap = useMemo(() => {
     return (servicosData || []).reduce((acc, servico) => {
@@ -263,6 +265,8 @@ const Rotas = () => {
   }
 
   const handleNovaRota = () => {
+    if (!isAdmin) return
+
     setIsEditMode(false)
     setRotaToEdit(null)
     setRotaForm({
@@ -279,6 +283,8 @@ const Rotas = () => {
   }
 
   const handleEditRota = async (rota) => {
+    if (!isAdmin) return
+
     setIsEditMode(true)
     setRotaToEdit(rota)
     
@@ -299,6 +305,8 @@ const Rotas = () => {
   }
 
   const handleDeleteRota = (rota) => {
+    if (!isAdmin) return
+
     setDeleteRotaError(null)
     setRotaToDelete(rota)
     setIsDeleteModalOpen(true)
@@ -325,6 +333,8 @@ const Rotas = () => {
 
   const handleToggleStatus = async (rota, e) => {
     e?.stopPropagation()
+
+    if (!isAdmin) return
     
     const statusOptions = ['planejada', 'em_andamento', 'concluida', 'cancelada']
     const currentIndex = statusOptions.indexOf(rota.status)
@@ -343,9 +353,9 @@ const Rotas = () => {
 
   const handleConcluirServico = (servicoId, e) => {
     e?.stopPropagation()
-    
-    if (!isAdmin) return
-    
+
+    if (!canUpdateServico) return
+
     setServicoToConcluir(servicoId)
     setIsConfirmModalOpen(true)
   }
@@ -376,6 +386,48 @@ const Rotas = () => {
   const handleViewMap = (rota) => {
     setRotaToMap(rota)
     setIsMapModalOpen(true)
+  }
+
+  const handleCancelarServico = async (servicoId, e) => {
+    e?.stopPropagation()
+
+    if (!canUpdateServico) return
+
+    const confirmar = window.confirm('Deseja marcar este serviço como cancelado?')
+    if (!confirmar) return
+
+    try {
+      await api.put(`/servicos/${servicoId}`, {
+        status: 'cancelado'
+      })
+      await refetchServicos()
+      await refetchRotas()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível cancelar o serviço.')
+    }
+  }
+
+  const handleAdicionarObservacao = async (servico, e) => {
+    e?.stopPropagation()
+
+    if (!canUpdateServico) return
+
+    const observacaoAtual = servico?.observacoes || ''
+    const novaObservacao = window.prompt('Adicionar/editar observação do serviço:', observacaoAtual)
+
+    if (novaObservacao === null) {
+      return
+    }
+
+    try {
+      await api.put(`/servicos/${servico.id}`, {
+        observacoes: novaObservacao.trim()
+      })
+      await refetchServicos()
+      await refetchRotas()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível salvar a observação.')
+    }
   }
 
   const handleRotaSubmit = async (event) => {
@@ -497,7 +549,13 @@ const Rotas = () => {
           <h1 className="rotas__title">Rotas</h1>
           <p className="rotas__subtitle">Planejamento e gerenciamento de rotas de serviço</p>
         </div>
-        <button className="rotas__button" type="button" onClick={handleNovaRota}>
+        <button
+          className="rotas__button"
+          type="button"
+          onClick={handleNovaRota}
+          disabled={!isAdmin}
+          title={isAdmin ? '' : 'Apenas administradores podem criar rotas'}
+        >
           <MdAdd />
           Nova Rota
         </button>
@@ -525,7 +583,13 @@ const Rotas = () => {
           <div className="rotas__empty">
             <MdMap className="rotas__empty-icon" />
             <p>Nenhuma rota encontrada</p>
-            <button className="rotas__button" type="button" onClick={handleNovaRota}>
+            <button
+              className="rotas__button"
+              type="button"
+              onClick={handleNovaRota}
+              disabled={!isAdmin}
+              title={isAdmin ? '' : 'Apenas administradores podem criar rotas'}
+            >
               Criar primeira rota
             </button>
           </div>
@@ -588,26 +652,30 @@ const Rotas = () => {
                     >
                       <MdRoute />
                     </button>
-                    <button
-                      className="rotas__action-btn rotas__action-btn--edit"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleEditRota(rota)
-                      }}
-                      title="Editar rota"
-                    >
-                      <MdEdit />
-                    </button>
-                    <button
-                      className="rotas__action-btn rotas__action-btn--delete"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteRota(rota)
-                      }}
-                      title="Excluir rota"
-                    >
-                      <MdDelete />
-                    </button>
+                    {isAdmin && (
+                      <>
+                        <button
+                          className="rotas__action-btn rotas__action-btn--edit"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditRota(rota)
+                          }}
+                          title="Editar rota"
+                        >
+                          <MdEdit />
+                        </button>
+                        <button
+                          className="rotas__action-btn rotas__action-btn--delete"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteRota(rota)
+                          }}
+                          title="Excluir rota"
+                        >
+                          <MdDelete />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -662,13 +730,38 @@ const Rotas = () => {
                                   </div>
                                 </div>
                               </div>
-                              {isAdmin && !isConcluido && (
+                              {canUpdateServico && !isConcluido && servico.status !== 'cancelado' && (
+                                <div className="rotas__servico-actions">
+                                  <button
+                                    className="rotas__servico-btn-concluir"
+                                    onClick={(e) => handleConcluirServico(servico.id, e)}
+                                    title="Marcar como concluído"
+                                  >
+                                    <MdCheckCircle />
+                                  </button>
+                                  <button
+                                    className="rotas__servico-btn-concluir rotas__servico-btn-concluir--cancel"
+                                    onClick={(e) => handleCancelarServico(servico.id, e)}
+                                    title="Marcar como cancelado"
+                                  >
+                                    <MdCancel />
+                                  </button>
+                                  <button
+                                    className="rotas__servico-btn-concluir rotas__servico-btn-concluir--note"
+                                    onClick={(e) => handleAdicionarObservacao(servico, e)}
+                                    title="Adicionar observação"
+                                  >
+                                    <MdEdit />
+                                  </button>
+                                </div>
+                              )}
+                              {canUpdateServico && servico.status === 'cancelado' && (
                                 <button
-                                  className="rotas__servico-btn-concluir"
-                                  onClick={(e) => handleConcluirServico(servico.id, e)}
-                                  title="Marcar como concluído"
+                                  className="rotas__servico-btn-concluir rotas__servico-btn-concluir--note"
+                                  onClick={(e) => handleAdicionarObservacao(servico, e)}
+                                  title="Adicionar observação"
                                 >
-                                  <MdCheckCircle />
+                                  <MdEdit />
                                 </button>
                               )}
                               {isConcluido && (

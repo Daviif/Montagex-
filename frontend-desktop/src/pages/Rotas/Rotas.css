@@ -334,6 +334,12 @@
   align-items: center;
 }
 
+.rotas__servico-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
 .rotas__servico-btn-concluir {
   display: flex;
   align-items: center;
@@ -356,6 +362,22 @@
 
 .rotas__servico-btn-concluir svg {
   font-size: 1.25rem;
+}
+
+.rotas__servico-btn-concluir--cancel {
+  background: var(--danger, #ef4444);
+}
+
+.rotas__servico-btn-concluir--cancel:hover {
+  background: var(--danger-dark, #dc2626);
+}
+
+.rotas__servico-btn-concluir--note {
+  background: var(--info, #3b82f6);
+}
+
+.rotas__servico-btn-concluir--note:hover {
+  background: var(--info-dark, #2563eb);
 }
 
 .rotas__servico-concluido {

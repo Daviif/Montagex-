@@ -12,6 +12,7 @@ import Equipe from './pages/Equipe/Equipe'
 import Rotas from './pages/Rotas/Rotas'
 import Financeiro from './pages/Financeiro/Financeiro'
 import Relatorios from './pages/Relatorios/Relatorios'
+import Perfil from './pages/Perfil/Perfil'
 import Settings from './pages/Settings/Settings'
 import PrivateRoute from './components/PrivateRoute/PrivateRoute'
 
@@ -37,6 +38,7 @@ function App() {
               <Route path="rotas/*" element={<Rotas />} />
               <Route path="financeiro/*" element={<Financeiro />} />
               <Route path="relatorios/*" element={<Relatorios />} />
+              <Route path="perfil" element={<Perfil />} />
               <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>

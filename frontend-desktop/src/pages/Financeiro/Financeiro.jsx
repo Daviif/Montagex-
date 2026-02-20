@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   MdAccountBalanceWallet,
   MdAttachMoney,
@@ -37,7 +37,12 @@ const Financeiro = () => {
     forma_pagamento: ''
   })
 
-  const { data: salariosData, loading: salariosLoading } = useApi('/dashboard/salarios')
+  const { user } = useAuth()
+  const isAdmin = user?.tipo === 'admin'
+  const isMontador = user?.tipo === 'montador'
+  const salariosEndpoint = isAdmin ? '/dashboard/salarios' : '/health'
+
+  const { data: salariosData, loading: salariosLoading } = useApi(salariosEndpoint)
   const {
     data: recebimentosData,
     loading: recebimentosLoading,
@@ -57,8 +62,13 @@ const Financeiro = () => {
 
   const { formatDate } = useDate()
   const formatCurrency = useCurrency()
-  const { user } = useAuth()
-  const isAdmin = user?.tipo === 'admin'
+
+  useEffect(() => {
+    if (isMontador && activeTab !== 'pagamentos') {
+      setActiveTab('pagamentos')
+      setSearchTerm('')
+    }
+  }, [isMontador, activeTab])
 
   const isLoading = salariosLoading || recebimentosLoading || pagamentosLoading || despesasLoading
 
@@ -349,6 +359,10 @@ const Financeiro = () => {
   }, [despesasData, searchNormalized, usuariosMap])
 
   const actionLabel = useMemo(() => {
+    if (isMontador) {
+      return ''
+    }
+
     switch (activeTab) {
       case 'recebimentos':
         return 'Novo Recebimento'
@@ -359,7 +373,7 @@ const Financeiro = () => {
       default:
         return ''
     }
-  }, [activeTab])
+  }, [activeTab, isMontador])
 
   const totalSalarios = salariosData?.totais?.total_salarios || 0
 
@@ -472,28 +486,32 @@ const Financeiro = () => {
       </div>
 
       <div className="financeiro__tabs">
-        <button
-          type="button"
-          className={`financeiro__tab ${activeTab === 'salarios' ? 'financeiro__tab--active' : ''}`}
-          onClick={() => {
-            setActiveTab('salarios')
-            setSearchTerm('')
-          }}
-        >
-          <MdAccountBalanceWallet />
-          Salários
-        </button>
-        <button
-          type="button"
-          className={`financeiro__tab ${activeTab === 'recebimentos' ? 'financeiro__tab--active' : ''}`}
-          onClick={() => {
-            setActiveTab('recebimentos')
-            setSearchTerm('')
-          }}
-        >
-          <MdAttachMoney />
-          Recebimentos
-        </button>
+        {!isMontador && (
+          <button
+            type="button"
+            className={`financeiro__tab ${activeTab === 'salarios' ? 'financeiro__tab--active' : ''}`}
+            onClick={() => {
+              setActiveTab('salarios')
+              setSearchTerm('')
+            }}
+          >
+            <MdAccountBalanceWallet />
+            Salários
+          </button>
+        )}
+        {!isMontador && (
+          <button
+            type="button"
+            className={`financeiro__tab ${activeTab === 'recebimentos' ? 'financeiro__tab--active' : ''}`}
+            onClick={() => {
+              setActiveTab('recebimentos')
+              setSearchTerm('')
+            }}
+          >
+            <MdAttachMoney />
+            Recebimentos
+          </button>
+        )}
         <button
           type="button"
           className={`financeiro__tab ${activeTab === 'pagamentos' ? 'financeiro__tab--active' : ''}`}
@@ -505,17 +523,19 @@ const Financeiro = () => {
           <MdPayments />
           Pagamentos
         </button>
-        <button
-          type="button"
-          className={`financeiro__tab ${activeTab === 'despesas' ? 'financeiro__tab--active' : ''}`}
-          onClick={() => {
-            setActiveTab('despesas')
-            setSearchTerm('')
-          }}
-        >
-          <MdReceiptLong />
-          Despesas
-        </button>
+        {!isMontador && (
+          <button
+            type="button"
+            className={`financeiro__tab ${activeTab === 'despesas' ? 'financeiro__tab--active' : ''}`}
+            onClick={() => {
+              setActiveTab('despesas')
+              setSearchTerm('')
+            }}
+          >
+            <MdReceiptLong />
+            Despesas
+          </button>
+        )}
       </div>
 
       <div className="financeiro__toolbar">
@@ -535,7 +555,7 @@ const Financeiro = () => {
         <div className="financeiro__loading">Carregando...</div>
       )}
 
-      {!isLoading && activeTab === 'salarios' && (
+      {!isLoading && !isMontador && activeTab === 'salarios' && (
         <Card
           title={`Salários - ${periodoLabel}`}
           extra={<span className="financeiro__badge">100% do valor</span>}
@@ -626,7 +646,7 @@ const Financeiro = () => {
         </Card>
       )}
 
-      {!isLoading && activeTab === 'recebimentos' && (
+      {!isLoading && !isMontador && activeTab === 'recebimentos' && (
         <Card title="Recebimentos" className="financeiro__card">
           {recebimentosList.length === 0 ? (
             <div className="financeiro__empty">Nenhum recebimento</div>
@@ -655,7 +675,11 @@ const Financeiro = () => {
                           {item.status || 'pendente'}
                         </span>
                       </td>
-                      <td>{formatCurrency(Number(item.valor || 0))}</td>
+                      <td>
+                        {isMontador && item.status !== 'pago'
+                          ? 'Disponível após pagamento'
+                          : formatCurrency(Number(item.valor || 0))}
+                      </td>
                       <td>{formatDate(item.data_prevista)}</td>
                       <td>{formatDate(item.data_recebimento)}</td>
                       <td className="financeiro__muted">
@@ -700,7 +724,11 @@ const Financeiro = () => {
                           {item.status || 'pendente'}
                         </span>
                       </td>
-                      <td>{formatCurrency(Number(item.valor || 0))}</td>
+                      <td>
+                        {isMontador && item.status !== 'pago'
+                          ? 'Disponível após pagamento'
+                          : formatCurrency(Number(item.valor || 0))}
+                      </td>
                       <td>{formatDate(item.data_pagamento)}</td>
                       <td className="financeiro__muted">
                         {servicosMap[item.servico_id]?.codigo_servico || item.servico_id?.slice(0, 8)}
@@ -714,7 +742,7 @@ const Financeiro = () => {
         </Card>
       )}
 
-      {!isLoading && activeTab === 'despesas' && (
+      {!isLoading && !isMontador && activeTab === 'despesas' && (
         <Card title="Despesas" className="financeiro__card">
           {despesasList.length === 0 ? (
             <div className="financeiro__empty">Nenhuma despesa</div>
@@ -747,7 +775,7 @@ const Financeiro = () => {
         </Card>
       )}
 
-      {isDespesaModalOpen && (
+      {!isMontador && isDespesaModalOpen && (
         <div className="financeiro__modal-backdrop" onClick={() => setIsDespesaModalOpen(false)}>
           <div className="financeiro__modal" onClick={(event) => event.stopPropagation()}>
             <div className="financeiro__modal-header">
@@ -862,7 +890,7 @@ const Financeiro = () => {
         </div>
       )}
 
-      {isRecebimentoModalOpen && (
+      {!isMontador && isRecebimentoModalOpen && (
         <div className="financeiro__modal-backdrop" onClick={() => setIsRecebimentoModalOpen(false)}>
           <div className="financeiro__modal" onClick={(event) => event.stopPropagation()}>
             <div className="financeiro__modal-header">
