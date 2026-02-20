@@ -690,6 +690,34 @@
   margin-right: 0.5rem;
 }
 
+.rotas__button--danger {
+  background: var(--danger, #ef4444);
+  color: white;
+}
+
+.rotas__button--danger:hover {
+  background: #dc2626;
+}
+
+.rotas__button--danger svg {
+  margin-right: 0.5rem;
+}
+
+.rotas__confirm-icon--danger svg {
+  color: var(--danger, #ef4444);
+}
+
+.rotas__delete-error {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #991b1b;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
 /* Map Modal Styles */
 .rotas__modal--map {
   max-width: 1200px;

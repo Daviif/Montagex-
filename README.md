@@ -146,7 +146,9 @@ npm run dev
 - [x] Menu lateral navigation
 - [x] 8 seções principais
 - [x] Design moderno e profissional
-- [x] Theme (light/dark ready)
+- [x] Theme (light/dark completo)
+- [x] Modo offline com cache local (GET)
+- [x] Sincronização automática de fila offline (POST/PUT/DELETE)
 - [x] Autenticação protegida
 - [x] Integração com API
 
@@ -335,8 +337,8 @@ Propripietary - Todos os direitos reservados
 - [x] Mobile app inicial
 
 ### v1.2
-- [ ] Modo offline
-- [ ] Sincronização automática
+- [x] Modo offline (Desktop)
+- [x] Sincronização automática (Desktop)
 - [x] Dark mode completo
 
 ### v2.0

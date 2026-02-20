@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   MdAdd,
   MdClose,
@@ -37,6 +37,8 @@ const Servicos = () => {
   const [editingId, setEditingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
+  const [anexoToDelete, setAnexoToDelete] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [tabProdutos, setTabProdutos] = useState([]);
   const [tabMontadores, setTabMontadores] = useState([]);
   const [searchProduto, setSearchProduto] = useState('');
@@ -45,6 +47,7 @@ const Servicos = () => {
   const [equipeSelecionada, setEquipeSelecionada] = useState('');
   const [anexos, setAnexos] = useState([]);
   const [uploadingAnexo, setUploadingAnexo] = useState(false);
+  const noticeTimerRef = useRef(null);
   const [formData, setFormData] = useState({
     data_servico: '',
     tipo_cliente: 'loja',
@@ -67,6 +70,28 @@ const Servicos = () => {
     cliente_final_contato: '',
     codigo_os_loja: ''
   });
+
+  const showNotice = useCallback((type, text, duration = 4000) => {
+    setNotice({ type, text });
+
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current);
+    }
+
+    if (duration > 0) {
+      noticeTimerRef.current = setTimeout(() => {
+        setNotice(null);
+      }, duration);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+      }
+    };
+  }, []);
 
   // Memoized maps for fast lookups
   const lojasById = useMemo(() => {
@@ -226,6 +251,7 @@ const Servicos = () => {
   // Open edit modal
   const handleEdit = useCallback((servico) => {
     const enderecoParts = (servico.endereco_execucao || '').split(',').map(part => part.trim());
+    const hasBairro = enderecoParts.length >= 6;
     setFormData({
       data_servico: servico.data_servico || '',
       tipo_cliente: servico.tipo_cliente || 'loja',
@@ -233,10 +259,10 @@ const Servicos = () => {
       cliente_particular_id: servico.cliente_particular_id || '',
       endereco_rua: enderecoParts[0] || servico.endereco_execucao || '',
       endereco_numero: enderecoParts[1] || '',
-      endereco_bairro: enderecoParts[2] || '',
-      endereco_cidade: enderecoParts[3] || '',
-      endereco_estado: enderecoParts[4] || '',
-      endereco_cep: enderecoParts[5] || '',
+      endereco_bairro: hasBairro ? (enderecoParts[2] || '') : '',
+      endereco_cidade: hasBairro ? (enderecoParts[3] || '') : (enderecoParts[2] || ''),
+      endereco_estado: hasBairro ? (enderecoParts[4] || '') : (enderecoParts[3] || ''),
+      endereco_cep: hasBairro ? (enderecoParts[5] || '') : (enderecoParts[4] || ''),
       latitude: servico.latitude || '',
       longitude: servico.longitude || '',
       prioridade: servico.prioridade || 0,
@@ -305,7 +331,8 @@ const Servicos = () => {
   }, []);
 
   // Geocodificar endereço
-  const geocodeAddress = useCallback(async (address) => {
+  const geocodeAddress = useCallback(async (address, options = {}) => {
+    const { showFeedback = false } = options;
     if (!address || address.trim().length < 5) {
       console.log('Endereço muito curto para geocodificação:', address);
       return;
@@ -335,23 +362,30 @@ const Servicos = () => {
           longitude
         }));
         
-        // Feedback visual
-        alert(`✅ Coordenadas encontradas!\nLatitude: ${latitude}\nLongitude: ${longitude}`);
+        if (showFeedback) {
+          showNotice('success', `Coordenadas encontradas: latitude ${latitude} e longitude ${longitude}.`);
+        }
       } else {
         console.warn('⚠️ Nenhuma coordenada encontrada para o endereço');
-        alert('⚠️ Não foi possível encontrar as coordenadas para este endereço. Verifique se o endereço está correto.');
+        if (showFeedback) {
+          showNotice('warning', 'Não foi possível encontrar as coordenadas para este endereço. Verifique os dados.');
+        }
       }
     } catch (err) {
       console.error('❌ Erro ao geocodificar endereço:', err);
-      alert('❌ Erro ao buscar coordenadas. Verifique sua conexão com a internet.');
+      if (showFeedback) {
+        showNotice('error', 'Erro ao buscar coordenadas. Verifique sua conexão com a internet.');
+      }
     }
-  }, []);
+  }, [showNotice]);
 
-  const buildEnderecoExecucao = useCallback((data) => {
+  const buildEnderecoExecucao = useCallback((data, options = {}) => {
+    const { includeBairro = true } = options;
+
     const parts = [
       data.endereco_rua,
       data.endereco_numero,
-      data.endereco_bairro,
+      ...(includeBairro ? [data.endereco_bairro] : []),
       data.endereco_cidade,
       data.endereco_estado,
       data.endereco_cep
@@ -486,7 +520,7 @@ const Servicos = () => {
             tipo_cliente: formData.tipo_cliente,
             loja_id: formData.tipo_cliente === 'loja' ? formData.loja_id || null : null,
             cliente_particular_id: formData.tipo_cliente === 'particular' ? formData.cliente_particular_id || null : null,
-            endereco_execucao: buildEnderecoExecucao(formData),
+            endereco_execucao: buildEnderecoExecucao(formData, { includeBairro: false }),
             latitude: formData.latitude || null,
             longitude: formData.longitude || null,
         valor_total: Number(totalProdutos.toFixed(2)),
@@ -593,8 +627,9 @@ const Servicos = () => {
       refetchServicos();
       refetchServicoProdutos();
       refetchServicoMontadores();
+      showNotice('success', editingId ? 'Serviço atualizado com sucesso.' : 'Serviço criado com sucesso.');
     } catch (err) {
-      alert('Erro ao salvar serviço: ' + err.message);
+      showNotice('error', 'Erro ao salvar serviço: ' + err.message);
     }
   };
 
@@ -606,6 +641,7 @@ const Servicos = () => {
       await api.delete(`/servicos/${showDeleteConfirm}`);
       setShowDeleteConfirm(null);
       refetchServicos();
+      showNotice('success', 'Serviço deletado com sucesso.');
     } catch (err) {
       const errorData = err.response?.data;
       if (errorData?.hasRotas) {
@@ -685,22 +721,23 @@ const Servicos = () => {
       });
       carregarAnexos(editingId);
       e.target.value = '';
+      showNotice('success', 'Anexo enviado com sucesso.');
     } catch (err) {
       console.error('Erro ao fazer upload:', err);
-      alert('Erro ao fazer upload: ' + err.message);
+      showNotice('error', 'Erro ao fazer upload: ' + err.message);
     } finally {
       setUploadingAnexo(false);
     }
   };
 
   const handleRemoveAnexo = async (anexoId) => {
-    if (!window.confirm('Deseja remover este anexo?')) return;
-
     try {
       await api.delete(`/anexos/anexos/${anexoId}`);
       setAnexos(anexos.filter(a => a.id !== anexoId));
+      setAnexoToDelete(null);
+      showNotice('success', 'Anexo removido com sucesso.');
     } catch (err) {
-      alert('Erro ao remover anexo: ' + err.message);
+      showNotice('error', 'Erro ao remover anexo: ' + err.message);
     }
   };
 
@@ -732,6 +769,12 @@ const Servicos = () => {
           )}
         </div>
       </div>
+
+      {notice && (
+        <div className={`servicos__notice servicos__notice--${notice.type}`}>
+          {notice.text}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="servicos__stats">
@@ -1125,9 +1168,9 @@ const Servicos = () => {
                     onClick={() => {
                       const endereco = buildEnderecoExecucao(formData);
                       if (endereco) {
-                        geocodeAddress(endereco);
+                        geocodeAddress(endereco, { showFeedback: true });
                       } else {
-                        alert('Preencha o endereço completo primeiro');
+                        showNotice('warning', 'Preencha o endereço completo primeiro.');
                       }
                     }}
                     title="Buscar coordenadas do endereço"
@@ -1400,7 +1443,7 @@ const Servicos = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleRemoveAnexo(anexo.id)}
+                              onClick={() => setAnexoToDelete(anexo.id)}
                               className="servicos__btn-icon servicos__btn-icon--danger"
                               title="Remover"
                             >
@@ -1527,6 +1570,56 @@ const Servicos = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {anexoToDelete && (
+        <div className="servicos__modal-overlay" onClick={() => setAnexoToDelete(null)}>
+          <div className="servicos__modal-content servicos__modal-small" onClick={(e) => e.stopPropagation()}>
+            <div className="servicos__modal-header">
+              <h3>⚠️ Confirmar remoção</h3>
+            </div>
+            <p>Deseja remover este anexo?</p>
+            <div className="servicos__modal-footer">
+              <button
+                className="servicos__btn servicos__btn--secondary"
+                onClick={() => setAnexoToDelete(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="servicos__btn servicos__btn--danger"
+                onClick={() => handleRemoveAnexo(anexoToDelete)}
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {anexoToDelete && (
+        <div className="servicos__modal-overlay" onClick={() => setAnexoToDelete(null)}>
+          <div className="servicos__modal-content servicos__modal-small" onClick={(e) => e.stopPropagation()}>
+            <div className="servicos__modal-header">
+              <h3>⚠️ Confirmar remoção</h3>
+            </div>
+            <p>Deseja remover este anexo?</p>
+            <div className="servicos__modal-footer">
+              <button
+                className="servicos__btn servicos__btn--secondary"
+                onClick={() => setAnexoToDelete(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="servicos__btn servicos__btn--danger"
+                onClick={() => handleRemoveAnexo(anexoToDelete)}
+              >
+                Remover
+              </button>
+            </div>
           </div>
         </div>
       )}

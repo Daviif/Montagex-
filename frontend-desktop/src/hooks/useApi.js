@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import api from '../services/api'
+import api, { isOfflineError } from '../services/api'
 
 /**
  * Hook para fazer requisições HTTP
@@ -34,7 +34,11 @@ export const useApi = (url, method = 'GET', initialData = null) => {
 
       setData(response.data.data || response.data)
     } catch (err) {
-      setError(err.response?.data?.message || err.message)
+      if (isOfflineError(err)) {
+        setError(err.message || 'Você está offline e não há dados em cache para esta consulta.')
+      } else {
+        setError(err.response?.data?.message || err.message)
+      }
     } finally {
       setLoading(false)
     }

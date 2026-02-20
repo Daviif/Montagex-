@@ -57,8 +57,38 @@ const menuItems = [
   }
 ]
 
-const Sidebar = () => {
+const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: false } }) => {
   const { user, signOut } = useAuth()
+
+  const getConnectionStatus = () => {
+    if (isOffline) {
+      return {
+        text: 'Offline',
+        dotClass: 'status-dot status-dot--offline'
+      }
+    }
+
+    if (queueStatus?.isSyncing) {
+      return {
+        text: `Sincronizando (${queueStatus.pending})`,
+        dotClass: 'status-dot status-dot--syncing'
+      }
+    }
+
+    if ((queueStatus?.pending || 0) > 0) {
+      return {
+        text: `Online • ${queueStatus.pending} pendente(s)`,
+        dotClass: 'status-dot status-dot--pending'
+      }
+    }
+
+    return {
+      text: 'Online',
+      dotClass: 'status-dot status-dot--online'
+    }
+  }
+
+  const connectionStatus = getConnectionStatus()
 
   return (
     <aside className="sidebar">
@@ -93,6 +123,10 @@ const Sidebar = () => {
             <div className="user-name">{user?.nome || 'Usuário'}</div>
             <div className="user-role">
               {user?.tipo_usuario === 'admin' ? 'Administrador' : 'Montador'}
+            </div>
+            <div className="user-status">
+              <span className={connectionStatus.dotClass}></span>
+              <span className="status-text">{connectionStatus.text}</span>
             </div>
           </div>
         </div>
