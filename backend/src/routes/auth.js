@@ -6,6 +6,18 @@ const { models } = require('../models');
 const router = express.Router();
 const { Usuario } = models;
 
+const mapUsuarioAuth = (usuario) => ({
+  id: usuario.id,
+  nome: usuario.nome,
+  email: usuario.email,
+  tipo: usuario.tipo,
+  foto_perfil: usuario.foto_perfil || null,
+  chave_pix: usuario.chave_pix || null,
+  data_nascimento: usuario.data_nascimento || null,
+  habilitacao: usuario.habilitacao || null,
+  meta_mensal: usuario.meta_mensal != null ? Number(usuario.meta_mensal) : null
+});
+
 // POST /auth/login - Faz login e retorna JWT
 router.post('/login', async (req, res, next) => {
   try {
@@ -39,12 +51,7 @@ router.post('/login', async (req, res, next) => {
 
     res.json({
       token,
-      usuario: {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        tipo: usuario.tipo
-      }
+      usuario: mapUsuarioAuth(usuario)
     });
   } catch (err) {
     next(err);
@@ -88,12 +95,7 @@ router.post('/register', async (req, res, next) => {
 
     res.status(201).json({
       token,
-      usuario: {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        tipo: usuario.tipo
-      }
+      usuario: mapUsuarioAuth(usuario)
     });
   } catch (err) {
     next(err);

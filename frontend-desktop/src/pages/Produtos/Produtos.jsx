@@ -49,6 +49,7 @@ const Produtos = () => {
 
   const { user } = useAuth()
   const isAdmin = user?.tipo === 'admin'
+  const canCreateProduto = isAdmin || user?.tipo === 'montador'
 
   const produtosList = useMemo(
     () => (Array.isArray(produtos) ? produtos : []),
@@ -201,8 +202,8 @@ const Produtos = () => {
             type="button"
             className="produtos__button"
             onClick={() => openModal()}
-            disabled={!isAdmin}
-            title={isAdmin ? '' : 'Apenas administradores podem cadastrar'}
+            disabled={!canCreateProduto}
+            title={canCreateProduto ? '' : 'Sem permissão para cadastrar produto'}
           >
             <MdAdd /> Novo móvel
           </button>

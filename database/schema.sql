@@ -174,6 +174,8 @@ CREATE TABLE servico_produtos (
     produto_id UUID NOT NULL REFERENCES produtos(id),
     quantidade INT NOT NULL,
     valor_unitario NUMERIC(10,2),
+    utilizar_desconto BOOLEAN DEFAULT FALSE,
+    valor_desconto NUMERIC(10,2) DEFAULT 0,
     valor_total NUMERIC(10,2)
 );
 

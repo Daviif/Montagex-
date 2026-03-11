@@ -7,6 +7,12 @@ import { useTheme } from '../contexts/ThemeContext';
 export default function ServiceCard({ service, onPress }) {
   const { theme } = useTheme();
 
+  const parseCurrency = (value) => {
+    if (value == null) return null;
+    const parsed = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'pendente': return theme.colors.warning;
@@ -28,12 +34,19 @@ export default function ServiceCard({ service, onPress }) {
   };
 
   const styles = createStyles(theme);
+  const totalValue = parseCurrency(service?.valor_total);
+  const codigo = service?.codigo || service?.codigo_servico || service?.codigo_os_loja || service?.id?.slice?.(0, 8) || 'Sem código';
+  const clienteNome =
+    service?.cliente_nome ||
+    service?.cliente_final_nome ||
+    (service?.tipo_cliente === 'loja' ? 'Loja não identificada' : 'Cliente particular não identificado');
+  const endereco = service?.endereco || service?.endereco_execucao || 'Endereço não informado';
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.codigo}>{service.codigo}</Text>
+          <Text style={styles.codigo}>{codigo}</Text>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(service.status) + '20' }]}>
             <Text style={[styles.statusText, { color: getStatusColor(service.status) }]}>
               {getStatusLabel(service.status)}
@@ -51,7 +64,7 @@ export default function ServiceCard({ service, onPress }) {
         <View style={styles.infoItem}>
           <Ionicons name="business-outline" size={16} color={theme.colors.textSecondary} />
           <Text style={styles.infoText} numberOfLines={1}>
-            {service.cliente_nome || 'N/A'}
+            {clienteNome}
           </Text>
         </View>
         
@@ -65,10 +78,17 @@ export default function ServiceCard({ service, onPress }) {
         )}
       </View>
 
-      {service.valor_total && (
+      <View style={styles.infoItem}>
+        <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} />
+        <Text style={styles.infoText} numberOfLines={1}>
+          {endereco}
+        </Text>
+      </View>
+
+      {totalValue != null && (
         <View style={styles.valueContainer}>
           <Text style={styles.valueLabel}>Valor Total:</Text>
-          <Text style={styles.value}>R$ {service.valor_total.toFixed(2)}</Text>
+          <Text style={styles.value}>R$ {totalValue.toFixed(2)}</Text>
         </View>
       )}
     </TouchableOpacity>

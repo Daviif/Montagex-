@@ -1,10 +1,26 @@
 const express = require('express');
 
-function createCrudRouter(model) {
+function createCrudRouter(model, options = {}) {
   const router = express.Router();
+  const {
+    beforeGetAll,
+    afterGetAll,
+    beforeGetById,
+    afterGetById,
+    beforeCreate,
+    beforeUpdate,
+    beforeDelete
+  } = options;
 
   router.get('/', async (req, res, next) => {
     try {
+      if (beforeGetAll) {
+        const shouldContinue = await beforeGetAll(req, res);
+        if (shouldContinue === false) {
+          return;
+        }
+      }
+
       const { limit, offset, orderBy, orderDir, ...filters } = req.query;
       const options = { where: filters };
 
@@ -19,7 +35,8 @@ function createCrudRouter(model) {
       }
 
       const results = await model.findAll(options);
-      res.json(results);
+      const data = afterGetAll ? await afterGetAll(req, results) : results;
+      res.json(data);
     } catch (err) {
       next(err);
     }
@@ -27,11 +44,19 @@ function createCrudRouter(model) {
 
   router.get('/:id', async (req, res, next) => {
     try {
+      if (beforeGetById) {
+        const shouldContinue = await beforeGetById(req, res);
+        if (shouldContinue === false) {
+          return;
+        }
+      }
+
       const result = await model.findByPk(req.params.id);
       if (!result) {
         return res.status(404).json({ error: 'Not found' });
       }
-      res.json(result);
+      const data = afterGetById ? await afterGetById(req, result) : result;
+      res.json(data);
     } catch (err) {
       next(err);
     }
@@ -39,6 +64,13 @@ function createCrudRouter(model) {
 
   router.post('/', async (req, res, next) => {
     try {
+      if (beforeCreate) {
+        const shouldContinue = await beforeCreate(req, res);
+        if (shouldContinue === false) {
+          return;
+        }
+      }
+
       const created = await model.create(req.body);
       res.status(201).json(created);
     } catch (err) {
@@ -48,6 +80,13 @@ function createCrudRouter(model) {
 
   router.put('/:id', async (req, res, next) => {
     try {
+      if (beforeUpdate) {
+        const shouldContinue = await beforeUpdate(req, res);
+        if (shouldContinue === false) {
+          return;
+        }
+      }
+
       const existing = await model.findByPk(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: 'Not found' });
@@ -61,6 +100,13 @@ function createCrudRouter(model) {
 
   router.delete('/:id', async (req, res, next) => {
     try {
+      if (beforeDelete) {
+        const shouldContinue = await beforeDelete(req, res);
+        if (shouldContinue === false) {
+          return;
+        }
+      }
+
       const existing = await model.findByPk(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: 'Not found' });

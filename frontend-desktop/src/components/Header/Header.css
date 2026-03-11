@@ -52,6 +52,29 @@
   gap: var(--spacing-md);
 }
 
+.theme-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background-color: var(--bg-primary);
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.theme-btn:hover {
+  background-color: var(--border-color);
+}
+
+.theme-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--text-primary);
+}
+
 .notification-btn {
   position: relative;
   width: 40px;

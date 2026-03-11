@@ -11,8 +11,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ServicosScreen from '../screens/ServicosScreen';
+import RotasScreen from '../screens/RotasScreen';
 import ServicoDetalhesScreen from '../screens/ServicoDetalhesScreen';
 import NovoServicoScreen from '../screens/NovoServicoScreen';
+import MapaRotaScreen from '../screens/MapaRotaScreen';
 import EquipesScreen from '../screens/EquipesScreen';
 import FinanceiroScreen from '../screens/FinanceiroScreen';
 import PerfilScreen from '../screens/PerfilScreen';
@@ -35,6 +37,8 @@ function TabNavigator() {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Servicos') {
             iconName = focused ? 'briefcase' : 'briefcase-outline';
+          } else if (route.name === 'Rotas') {
+            iconName = focused ? 'map' : 'map-outline';
           } else if (route.name === 'Equipes') {
             iconName = focused ? 'people' : 'people-outline';
           } else if (route.name === 'Financeiro') {
@@ -55,6 +59,7 @@ function TabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Início' }} />
       <Tab.Screen name="Servicos" component={ServicosScreen} options={{ title: 'Serviços' }} />
+      <Tab.Screen name="Rotas" component={RotasScreen} options={{ title: 'Rotas' }} />
       <Tab.Screen name="Equipes" component={EquipesScreen} options={{ title: 'Equipes' }} />
       <Tab.Screen name="Financeiro" component={FinanceiroScreen} options={{ title: 'Financeiro' }} />
       <Tab.Screen name="Perfil" component={PerfilScreen} options={{ title: 'Perfil' }} />
@@ -115,6 +120,11 @@ function AppNavigator() {
         name="NovoServico" 
         component={NovoServicoScreen}
         options={{ title: 'Novo Serviço' }}
+      />
+      <Stack.Screen
+        name="MapaRota"
+        component={MapaRotaScreen}
+        options={{ title: 'Mapa da Rota' }}
       />
       <Stack.Screen 
         name="Configuracoes" 

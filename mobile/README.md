@@ -50,10 +50,52 @@ Edite o arquivo `app.json` e ajuste a URL da API:
 npm start
 ```
 
-2. **Execute no dispositivo:**
+2. **Configure o IP correto:**
+
+Abra o terminal e execute:
+```bash
+# Windows
+ipconfig
+
+# Mac/Linux
+ifconfig
+```
+
+Procure pelo **IPv4 Address** (normalmente começa com `192.168.` ou `172.` ou `10.`)
+
+Edite [app.json](app.json) e atualize:
+```json
+{
+  "expo": {
+    "extra": {
+      "apiUrl": "http://SEU_IPv4:3000/api"
+    }
+  }
+}
+```
+
+3. **Execute no dispositivo:**
    - **Android:** Pressione `a` no terminal ou escaneie o QR code com o Expo Go
    - **iOS:** Pressione `i` no terminal ou escaneie o QR code com a câmera
    - **Web:** Pressione `w` no terminal
+
+## 🌐 Modo de Conexão
+
+Por padrão, o app inicia em **modo offline** para evitar erros de conexão com a API do Expo:
+- Metro usa IP local automaticamente (`exp://192.168.x.x:8082`)
+- Para usar **tunnel** (conexão via internet): `npm start -- --tunnel`
+
+## ⚠️ Solução de Problemas
+
+### "Metro waiting on exp://127.0.0.1"
+- Significa que está em moloto local, não pode acessar do celular
+- **Solução:** Certifique-se que celular e computador estão **na mesma rede Wi-Fi**
+- Se mesmo assim não conectar, use: `npm start -- --tunnel`
+
+### Backend não conecta
+- Verifique que o backend está rodando: `docker-compose up` (na pasta `/backend`)
+- Confirme o IPv4 em `app.json` - **não use `localhost`**
+- Firewall pode estar bloqueando: libere a porta 3000
 
 ## 📱 Recursos Implementados
 

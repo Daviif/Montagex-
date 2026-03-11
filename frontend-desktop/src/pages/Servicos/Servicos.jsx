@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   MdAdd,
   MdClose,
@@ -13,6 +13,19 @@ import api from '../../services/api';
 import Card from '../../components/Card/Card';
 import StatCard from '../../components/StatCard/StatCard';
 import './Servicos.css';
+
+const createEmptyProdutoItem = () => ({
+  produto_id: '',
+  quantidade: 1,
+  valor_unitario: 0,
+  utilizar_desconto: false,
+  valor_desconto: 0
+});
+
+const parseNumericValue = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
 
 const Servicos = () => {
   const { user } = useContext(AuthContext);
@@ -37,6 +50,8 @@ const Servicos = () => {
   const [editingId, setEditingId] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
+  const [anexoToDelete, setAnexoToDelete] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [tabProdutos, setTabProdutos] = useState([]);
   const [tabMontadores, setTabMontadores] = useState([]);
   const [searchProduto, setSearchProduto] = useState('');
@@ -45,6 +60,7 @@ const Servicos = () => {
   const [equipeSelecionada, setEquipeSelecionada] = useState('');
   const [anexos, setAnexos] = useState([]);
   const [uploadingAnexo, setUploadingAnexo] = useState(false);
+  const noticeTimerRef = useRef(null);
   const [formData, setFormData] = useState({
     data_servico: '',
     tipo_cliente: 'loja',
@@ -67,6 +83,46 @@ const Servicos = () => {
     cliente_final_contato: '',
     codigo_os_loja: ''
   });
+
+  const showNotice = useCallback((type, text, duration = 4000) => {
+    setNotice({ type, text });
+
+    if (noticeTimerRef.current) {
+      clearTimeout(noticeTimerRef.current);
+    }
+
+    if (duration > 0) {
+      noticeTimerRef.current = setTimeout(() => {
+        setNotice(null);
+      }, duration);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const getProdutoSubtotal = useCallback((produto) => {
+    return parseNumericValue(produto.quantidade) * parseNumericValue(produto.valor_unitario);
+  }, []);
+
+  const getProdutoDiscount = useCallback((produto) => {
+    if (!produto?.utilizar_desconto) {
+      return 0;
+    }
+
+    const subtotal = getProdutoSubtotal(produto);
+    return Math.min(Math.max(parseNumericValue(produto.valor_desconto), 0), subtotal);
+  }, [getProdutoSubtotal]);
+
+  const getProdutoTotal = useCallback((produto) => {
+    const total = getProdutoSubtotal(produto) - getProdutoDiscount(produto);
+    return Number(Math.max(total, 0).toFixed(2));
+  }, [getProdutoDiscount, getProdutoSubtotal]);
 
   // Memoized maps for fast lookups
   const lojasById = useMemo(() => {
@@ -226,6 +282,7 @@ const Servicos = () => {
   // Open edit modal
   const handleEdit = useCallback((servico) => {
     const enderecoParts = (servico.endereco_execucao || '').split(',').map(part => part.trim());
+    const hasBairro = enderecoParts.length >= 6;
     setFormData({
       data_servico: servico.data_servico || '',
       tipo_cliente: servico.tipo_cliente || 'loja',
@@ -233,10 +290,10 @@ const Servicos = () => {
       cliente_particular_id: servico.cliente_particular_id || '',
       endereco_rua: enderecoParts[0] || servico.endereco_execucao || '',
       endereco_numero: enderecoParts[1] || '',
-      endereco_bairro: enderecoParts[2] || '',
-      endereco_cidade: enderecoParts[3] || '',
-      endereco_estado: enderecoParts[4] || '',
-      endereco_cep: enderecoParts[5] || '',
+      endereco_bairro: hasBairro ? (enderecoParts[2] || '') : '',
+      endereco_cidade: hasBairro ? (enderecoParts[3] || '') : (enderecoParts[2] || ''),
+      endereco_estado: hasBairro ? (enderecoParts[4] || '') : (enderecoParts[3] || ''),
+      endereco_cep: hasBairro ? (enderecoParts[5] || '') : (enderecoParts[4] || ''),
       latitude: servico.latitude || '',
       longitude: servico.longitude || '',
       prioridade: servico.prioridade || 0,
@@ -250,7 +307,21 @@ const Servicos = () => {
     });
     
     const montadores = getServicoMontadores(servico.id);
-    setTabProdutos(getServicoProdutos(servico.id));
+    setTabProdutos(
+      getServicoProdutos(servico.id).map((item) => {
+        const valorDesconto = parseNumericValue(item.valor_desconto);
+
+        return {
+          ...item,
+          quantidade: parseNumericValue(item.quantidade) || 1,
+          valor_unitario: parseNumericValue(item.valor_unitario),
+          utilizar_desconto: item.utilizar_desconto != null
+            ? Boolean(item.utilizar_desconto)
+            : valorDesconto > 0,
+          valor_desconto: valorDesconto
+        };
+      })
+    );
     setTabMontadores(montadores);
     
     // Detectar tipo de atribuição
@@ -305,7 +376,8 @@ const Servicos = () => {
   }, []);
 
   // Geocodificar endereço
-  const geocodeAddress = useCallback(async (address) => {
+  const geocodeAddress = useCallback(async (address, options = {}) => {
+    const { showFeedback = false } = options;
     if (!address || address.trim().length < 5) {
       console.log('Endereço muito curto para geocodificação:', address);
       return;
@@ -335,23 +407,30 @@ const Servicos = () => {
           longitude
         }));
         
-        // Feedback visual
-        alert(`✅ Coordenadas encontradas!\nLatitude: ${latitude}\nLongitude: ${longitude}`);
+        if (showFeedback) {
+          showNotice('success', `Coordenadas encontradas: latitude ${latitude} e longitude ${longitude}.`);
+        }
       } else {
         console.warn('⚠️ Nenhuma coordenada encontrada para o endereço');
-        alert('⚠️ Não foi possível encontrar as coordenadas para este endereço. Verifique se o endereço está correto.');
+        if (showFeedback) {
+          showNotice('warning', 'Não foi possível encontrar as coordenadas para este endereço. Verifique os dados.');
+        }
       }
     } catch (err) {
       console.error('❌ Erro ao geocodificar endereço:', err);
-      alert('❌ Erro ao buscar coordenadas. Verifique sua conexão com a internet.');
+      if (showFeedback) {
+        showNotice('error', 'Erro ao buscar coordenadas. Verifique sua conexão com a internet.');
+      }
     }
-  }, []);
+  }, [showNotice]);
 
-  const buildEnderecoExecucao = useCallback((data) => {
+  const buildEnderecoExecucao = useCallback((data, options = {}) => {
+    const { includeBairro = true } = options;
+
     const parts = [
       data.endereco_rua,
       data.endereco_numero,
-      data.endereco_bairro,
+      ...(includeBairro ? [data.endereco_bairro] : []),
       data.endereco_cidade,
       data.endereco_estado,
       data.endereco_cep
@@ -391,6 +470,7 @@ const Servicos = () => {
 
     // Parse endereço existente (formato: "Rua, Número, Complemento, Bairro, Cidade, Estado, CEP")
     const enderecoParts = (cliente.endereco || '').split(',').map(part => part.trim());
+    const hasBairro = enderecoParts.length >= 7;
 
     const novosDados = {
       cliente_particular_id: clienteId,
@@ -399,10 +479,10 @@ const Servicos = () => {
       endereco_rua: enderecoParts[0] || '',
       endereco_numero: enderecoParts[1] || '',
       endereco_complemento: enderecoParts[2] || '',
-      endereco_bairro: enderecoParts[3] || '',
-      endereco_cidade: enderecoParts[4] || '',
-      endereco_estado: enderecoParts[5] || '',
-      endereco_cep: enderecoParts[6] || ''
+      endereco_bairro: hasBairro ? (enderecoParts[3] || '') : '',
+      endereco_cidade: hasBairro ? (enderecoParts[4] || '') : (enderecoParts[3] || ''),
+      endereco_estado: hasBairro ? (enderecoParts[5] || '') : (enderecoParts[4] || ''),
+      endereco_cep: hasBairro ? (enderecoParts[6] || '') : (enderecoParts[5] || '')
     };
 
     setFormData(prev => ({
@@ -471,7 +551,7 @@ const Servicos = () => {
 
     try {
       const totalProdutos = tabProdutos.reduce(
-        (acc, produto) => acc + (Number(produto.quantidade || 0) * Number(produto.valor_unitario || 0)),
+        (acc, produto) => acc + getProdutoTotal(produto),
         0
       );
       const lojaSelecionada = formData.tipo_cliente === 'loja' ? lojasById[formData.loja_id] : null;
@@ -486,7 +566,7 @@ const Servicos = () => {
             tipo_cliente: formData.tipo_cliente,
             loja_id: formData.tipo_cliente === 'loja' ? formData.loja_id || null : null,
             cliente_particular_id: formData.tipo_cliente === 'particular' ? formData.cliente_particular_id || null : null,
-            endereco_execucao: buildEnderecoExecucao(formData),
+            endereco_execucao: buildEnderecoExecucao(formData, { includeBairro: false }),
             latitude: formData.latitude || null,
             longitude: formData.longitude || null,
         valor_total: Number(totalProdutos.toFixed(2)),
@@ -520,7 +600,9 @@ const Servicos = () => {
             produto_id: produto.produto_id,
             quantidade: Number(produto.quantidade || 1),
             valor_unitario: Number(produto.valor_unitario || 0),
-            valor_total: Number(produto.quantidade || 1) * Number(produto.valor_unitario || 0)
+            utilizar_desconto: Boolean(produto.utilizar_desconto),
+            valor_desconto: getProdutoDiscount(produto),
+            valor_total: getProdutoTotal(produto)
           }));
 
         if (produtosPayload.length > 0) {
@@ -593,8 +675,9 @@ const Servicos = () => {
       refetchServicos();
       refetchServicoProdutos();
       refetchServicoMontadores();
+      showNotice('success', editingId ? 'Serviço atualizado com sucesso.' : 'Serviço criado com sucesso.');
     } catch (err) {
-      alert('Erro ao salvar serviço: ' + err.message);
+      showNotice('error', 'Erro ao salvar serviço: ' + err.message);
     }
   };
 
@@ -606,6 +689,7 @@ const Servicos = () => {
       await api.delete(`/servicos/${showDeleteConfirm}`);
       setShowDeleteConfirm(null);
       refetchServicos();
+      showNotice('success', 'Serviço deletado com sucesso.');
     } catch (err) {
       const errorData = err.response?.data;
       if (errorData?.hasRotas) {
@@ -625,7 +709,7 @@ const Servicos = () => {
 
   // Add produto
   const handleAddProduto = () => {
-    setTabProdutos([...tabProdutos, { produto_id: '', quantidade: 1, valor_unitario: 0 }]);
+    setTabProdutos([...tabProdutos, createEmptyProdutoItem()]);
   };
 
   // Remove produto
@@ -636,13 +720,30 @@ const Servicos = () => {
   // Update produto
   const handleUpdateProduto = (idx, field, value) => {
     const updated = [...tabProdutos];
-    updated[idx][field] = value;
+
+    updated[idx] = {
+      ...updated[idx],
+      [field]: field === 'valor_desconto' ? Math.max(parseNumericValue(value), 0) : value
+    };
+
     if (field === 'produto_id') {
       const prod = produtosById[value];
       if (prod) {
-        updated[idx].valor_unitario = prod.valor_base || 0;
+        updated[idx].valor_unitario = parseNumericValue(prod.valor_base);
       }
+
+      updated[idx].utilizar_desconto = false;
+      updated[idx].valor_desconto = 0;
     }
+
+    if (field === 'quantidade') {
+      updated[idx].quantidade = Math.max(parseNumericValue(value), 1);
+    }
+
+    if (field === 'utilizar_desconto' && !value) {
+      updated[idx].valor_desconto = 0;
+    }
+
     setTabProdutos(updated);
   };
 
@@ -685,22 +786,23 @@ const Servicos = () => {
       });
       carregarAnexos(editingId);
       e.target.value = '';
+      showNotice('success', 'Anexo enviado com sucesso.');
     } catch (err) {
       console.error('Erro ao fazer upload:', err);
-      alert('Erro ao fazer upload: ' + err.message);
+      showNotice('error', 'Erro ao fazer upload: ' + err.message);
     } finally {
       setUploadingAnexo(false);
     }
   };
 
   const handleRemoveAnexo = async (anexoId) => {
-    if (!window.confirm('Deseja remover este anexo?')) return;
-
     try {
       await api.delete(`/anexos/anexos/${anexoId}`);
       setAnexos(anexos.filter(a => a.id !== anexoId));
+      setAnexoToDelete(null);
+      showNotice('success', 'Anexo removido com sucesso.');
     } catch (err) {
-      alert('Erro ao remover anexo: ' + err.message);
+      showNotice('error', 'Erro ao remover anexo: ' + err.message);
     }
   };
 
@@ -732,6 +834,12 @@ const Servicos = () => {
           )}
         </div>
       </div>
+
+      {notice && (
+        <div className={`servicos__notice servicos__notice--${notice.type}`}>
+          {notice.text}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="servicos__stats">
@@ -1125,9 +1233,9 @@ const Servicos = () => {
                     onClick={() => {
                       const endereco = buildEnderecoExecucao(formData);
                       if (endereco) {
-                        geocodeAddress(endereco);
+                        geocodeAddress(endereco, { showFeedback: true });
                       } else {
-                        alert('Preencha o endereço completo primeiro');
+                        showNotice('warning', 'Preencha o endereço completo primeiro.');
                       }
                     }}
                     title="Buscar coordenadas do endereço"
@@ -1269,6 +1377,7 @@ const Servicos = () => {
                               <th>Produto</th>
                               <th>Qtd</th>
                               <th>Valor Unitário</th>
+                              <th>Desconto</th>
                               <th>Total</th>
                               <th>Ação</th>
                             </tr>
@@ -1306,8 +1415,33 @@ const Servicos = () => {
                                   </span>
                                 </td>
                                 <td>
+                                  <div className="servicos__produto-discount-cell">
+                                    <label className="servicos__produto-discount-toggle">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(produto.utilizar_desconto)}
+                                        onChange={(e) => handleUpdateProduto(idx, 'utilizar_desconto', e.target.checked)}
+                                      />
+                                      <span>Utilizar desconto</span>
+                                    </label>
+
+                                    {produto.utilizar_desconto && (
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        max={getProdutoSubtotal(produto).toFixed(2)}
+                                        value={produto.valor_desconto}
+                                        onChange={(e) => handleUpdateProduto(idx, 'valor_desconto', e.target.value)}
+                                        className="servicos__produto-discount-input"
+                                        placeholder="0,00"
+                                      />
+                                    )}
+                                  </div>
+                                </td>
+                                <td>
                                   <span className="servicos__produto-total">
-                                    R$ {(Number(produto.quantidade || 0) * Number(produto.valor_unitario || 0)).toFixed(2)}
+                                    R$ {getProdutoTotal(produto).toFixed(2)}
                                   </span>
                                 </td>
                                 <td>
@@ -1400,7 +1534,7 @@ const Servicos = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleRemoveAnexo(anexo.id)}
+                              onClick={() => setAnexoToDelete(anexo.id)}
                               className="servicos__btn-icon servicos__btn-icon--danger"
                               title="Remover"
                             >
@@ -1421,7 +1555,7 @@ const Servicos = () => {
                 <div className="servicos__total">
                   <span className="servicos__total-label">Total (R$):</span>
                   <span className="servicos__total-value">
-                    {tabProdutos.reduce((acc, p) => acc + (p.quantidade * p.valor_unitario), 0).toFixed(2)}
+                    {tabProdutos.reduce((acc, produto) => acc + getProdutoTotal(produto), 0).toFixed(2)}
                   </span>
                 </div>
 
@@ -1527,6 +1661,56 @@ const Servicos = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {anexoToDelete && (
+        <div className="servicos__modal-overlay" onClick={() => setAnexoToDelete(null)}>
+          <div className="servicos__modal-content servicos__modal-small" onClick={(e) => e.stopPropagation()}>
+            <div className="servicos__modal-header">
+              <h3>⚠️ Confirmar remoção</h3>
+            </div>
+            <p>Deseja remover este anexo?</p>
+            <div className="servicos__modal-footer">
+              <button
+                className="servicos__btn servicos__btn--secondary"
+                onClick={() => setAnexoToDelete(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="servicos__btn servicos__btn--danger"
+                onClick={() => handleRemoveAnexo(anexoToDelete)}
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {anexoToDelete && (
+        <div className="servicos__modal-overlay" onClick={() => setAnexoToDelete(null)}>
+          <div className="servicos__modal-content servicos__modal-small" onClick={(e) => e.stopPropagation()}>
+            <div className="servicos__modal-header">
+              <h3>⚠️ Confirmar remoção</h3>
+            </div>
+            <p>Deseja remover este anexo?</p>
+            <div className="servicos__modal-footer">
+              <button
+                className="servicos__btn servicos__btn--secondary"
+                onClick={() => setAnexoToDelete(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="servicos__btn servicos__btn--danger"
+                onClick={() => handleRemoveAnexo(anexoToDelete)}
+              >
+                Remover
+              </button>
+            </div>
           </div>
         </div>
       )}

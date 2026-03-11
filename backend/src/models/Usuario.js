@@ -19,6 +19,21 @@ module.exports = (sequelize, DataTypes) => {
     tipo: {
       type: DataTypes.STRING(20)
     },
+    foto_perfil: {
+      type: DataTypes.TEXT
+    },
+    chave_pix: {
+      type: DataTypes.TEXT
+    },
+    data_nascimento: {
+      type: DataTypes.DATEONLY
+    },
+    habilitacao: {
+      type: DataTypes.TEXT
+    },
+    meta_mensal: {
+      type: DataTypes.DECIMAL(10, 2)
+    },
     ativo: {
       type: DataTypes.BOOLEAN,
       defaultValue: true

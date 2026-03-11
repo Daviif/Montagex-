@@ -1,8 +1,11 @@
 const express = require('express');
 const { models } = require('../models');
 const Sequelize = require('sequelize');
+const { authorizeServicoWrite } = require('../middleware/permissions');
 
 const router = express.Router();
+
+router.use(authorizeServicoWrite);
 
 // GET all servicos
 router.get('/', async (req, res, next) => {

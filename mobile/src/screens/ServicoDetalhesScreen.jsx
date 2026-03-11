@@ -20,6 +20,13 @@ export default function ServicoDetalhesScreen({ route, navigation }) {
 
   const [servico, setServico] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [clienteNome, setClienteNome] = useState('N/A');
+
+  const parseCurrency = (value) => {
+    if (value == null) return 0;
+    const parsed = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
 
   useEffect(() => {
     loadServico();
@@ -29,7 +36,31 @@ export default function ServicoDetalhesScreen({ route, navigation }) {
     try {
       setLoading(true);
       const response = await api.get(`/servicos/${id}`);
-      setServico(response.data);
+      const servicoData = response.data;
+      setServico(servicoData);
+
+      const nomeDireto = servicoData?.cliente_nome || servicoData?.cliente_final_nome;
+      if (nomeDireto) {
+        setClienteNome(nomeDireto);
+      } else if (servicoData?.tipo_cliente === 'loja' && servicoData?.loja_id) {
+        try {
+          const lojaResponse = await api.get(`/lojas/${servicoData.loja_id}`);
+          const loja = lojaResponse.data;
+          setClienteNome(loja?.nome_fantasia || loja?.razao_social || 'Loja');
+        } catch {
+          setClienteNome('Loja');
+        }
+      } else if (servicoData?.tipo_cliente === 'particular' && servicoData?.cliente_particular_id) {
+        try {
+          const clienteResponse = await api.get(`/clientes_particulares/${servicoData.cliente_particular_id}`);
+          const cliente = clienteResponse.data;
+          setClienteNome(cliente?.nome || 'Cliente particular');
+        } catch {
+          setClienteNome('Cliente particular');
+        }
+      } else {
+        setClienteNome('N/A');
+      }
     } catch (error) {
       console.error('Erro ao carregar serviço:', error);
       Alert.alert('Erro', 'Não foi possível carregar os detalhes do serviço');
@@ -78,7 +109,7 @@ export default function ServicoDetalhesScreen({ route, navigation }) {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View>
-              <Text style={styles.codigo}>{servico.codigo}</Text>
+                <Text style={styles.codigo}>{servico.codigo || servico.codigo_servico || servico.codigo_os_loja || servico.id?.slice?.(0, 8)}</Text>
               <View style={[styles.statusBadge, { backgroundColor: getStatusColor(servico.status) + '20' }]}>
                 <Text style={[styles.statusText, { color: getStatusColor(servico.status) }]}>
                   {getStatusLabel(servico.status)}
@@ -93,16 +124,16 @@ export default function ServicoDetalhesScreen({ route, navigation }) {
         {/* Informações do Cliente */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Cliente</Text>
-          <InfoRow icon="business" label="Nome" value={servico.cliente_nome || 'N/A'} theme={theme} />
-          <InfoRow icon="location" label="Endereço" value={servico.endereco || 'N/A'} theme={theme} />
+          <InfoRow icon="business" label="Nome" value={clienteNome} theme={theme} />
+          <InfoRow icon="location" label="Endereço" value={servico.endereco || servico.endereco_execucao || 'N/A'} theme={theme} />
         </View>
 
         {/* Informações do Serviço */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Detalhes do Serviço</Text>
           <InfoRow icon="calendar" label="Data" value={servico.data_servico || 'N/A'} theme={theme} />
-          <InfoRow icon="time" label="Horário" value={servico.horario || 'N/A'} theme={theme} />
-          <InfoRow icon="cash" label="Valor" value={`R$ ${(servico.valor_total || 0).toFixed(2)}`} theme={theme} />
+          <InfoRow icon="time" label="Horário" value={servico.horario || servico.janela_inicio || 'N/A'} theme={theme} />
+          <InfoRow icon="cash" label="Valor" value={`R$ ${parseCurrency(servico.valor_total).toFixed(2)}`} theme={theme} />
         </View>
 
         {/* Equipe */}

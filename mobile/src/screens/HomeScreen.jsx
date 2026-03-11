@@ -26,6 +26,28 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const parseCurrency = (value) => {
+    if (value == null) return 0;
+    const parsed = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const normalizeService = (servico, lojasMap, particularesMap) => {
+    const clienteNome =
+      servico?.cliente_nome ||
+      servico?.cliente_final_nome ||
+      (servico?.tipo_cliente === 'loja'
+        ? (lojasMap.get(servico?.loja_id) || null)
+        : (particularesMap.get(servico?.cliente_particular_id) || null));
+
+    return {
+      ...servico,
+      codigo: servico?.codigo || servico?.codigo_servico || servico?.codigo_os_loja || servico?.id?.slice?.(0, 8),
+      cliente_nome: clienteNome,
+      endereco: servico?.endereco || servico?.endereco_execucao || null,
+    };
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -35,13 +57,33 @@ export default function HomeScreen({ navigation }) {
       setLoading(true);
 
       // Carrega estatísticas
-      const [statsResponse, servicesResponse] = await Promise.all([
-        api.get('/dashboard/stats'),
+      const [statsResponse, servicesResponse, lojasResponse, particularesResponse] = await Promise.all([
+        api.get('/dashboard'),
         api.get('/servicos', { params: { limit: 5 } }),
+        api.get('/lojas'),
+        api.get('/clientes_particulares'),
       ]);
 
-      setStats(statsResponse.data);
-      setRecentServices(servicesResponse.data.servicos || servicesResponse.data);
+      const dashboardData = statsResponse.data?.data || statsResponse.data || {};
+
+      setStats({
+        servicosHoje: Number(dashboardData?.servicos?.agendados || 0),
+        servicosAndamento: Number(dashboardData?.servicos?.agendados || 0),
+        servicosMes: Number(dashboardData?.servicos?.realizados || 0),
+        faturamentoMes: parseCurrency(dashboardData?.financeiro?.total_recebido),
+      });
+      const servicosData = servicesResponse.data.servicos || servicesResponse.data || [];
+      const lojasData = lojasResponse.data.lojas || lojasResponse.data || [];
+      const particularesData = particularesResponse.data.clientes || particularesResponse.data || [];
+
+      const lojasMap = new Map(
+        (Array.isArray(lojasData) ? lojasData : []).map((loja) => [loja.id, loja.nome_fantasia || loja.razao_social || 'Loja'])
+      );
+      const particularesMap = new Map(
+        (Array.isArray(particularesData) ? particularesData : []).map((cliente) => [cliente.id, cliente.nome || 'Cliente'])
+      );
+
+      setRecentServices((Array.isArray(servicosData) ? servicosData : []).map((servico) => normalizeService(servico, lojasMap, particularesMap)));
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {

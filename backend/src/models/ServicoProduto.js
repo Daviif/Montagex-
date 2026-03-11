@@ -20,6 +20,14 @@ module.exports = (sequelize, DataTypes) => {
     valor_unitario: {
       type: DataTypes.DECIMAL(10, 2)
     },
+    utilizar_desconto: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+    valor_desconto: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0
+    },
     valor_total: {
       type: DataTypes.DECIMAL(10, 2)
     }

@@ -46,13 +46,13 @@ async function recalcularValoresMontadores(servicoId, valorRepasseMontagem, mode
   if (montadores.length === 0) return;
 
   const valorRepasse = Number(valorRepasseMontagem || 0);
-  const valorPorMontador = valorRepasse / montadores.length;
+  const valorPorMontador = (valorRepasse / montadores.length) / 2;
 
   for (const montador of montadores) {
     let novoValorMontador;
 
     if (montador.percentual_divisao != null && Number(montador.percentual_divisao) > 0) {
-      novoValorMontador = (valorRepasse * Number(montador.percentual_divisao)) / 100;
+      novoValorMontador = ((valorRepasse * Number(montador.percentual_divisao)) / 100) / 2;
     } else {
       novoValorMontador = valorPorMontador;
     }
@@ -139,9 +139,9 @@ async function recalcularValorMontador(montadorId, models) {
   let novoValorMontador;
 
   if (montador.percentual_divisao != null && Number(montador.percentual_divisao) > 0) {
-    novoValorMontador = (valorRepasse * Number(montador.percentual_divisao)) / 100;
+    novoValorMontador = ((valorRepasse * Number(montador.percentual_divisao)) / 100) / 2;
   } else {
-    novoValorMontador = valorRepasse / totalMontadores;
+    novoValorMontador = (valorRepasse / totalMontadores) / 2;
   }
 
   // Atualizar apenas se mudou

@@ -24,6 +24,22 @@ export default function ServicosScreen({ navigation }) {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
+  const normalizeService = (servico, lojasMap, particularesMap) => {
+    const clienteNome =
+      servico?.cliente_nome ||
+      servico?.cliente_final_nome ||
+      (servico?.tipo_cliente === 'loja'
+        ? (lojasMap.get(servico?.loja_id) || null)
+        : (particularesMap.get(servico?.cliente_particular_id) || null));
+
+    return {
+      ...servico,
+      codigo: servico?.codigo || servico?.codigo_servico || servico?.codigo_os_loja || servico?.id?.slice?.(0, 8),
+      cliente_nome: clienteNome,
+      endereco: servico?.endereco || servico?.endereco_execucao || null,
+    };
+  };
+
   useEffect(() => {
     loadServicos();
   }, [filterStatus]);
@@ -37,8 +53,24 @@ export default function ServicosScreen({ navigation }) {
         params.status = filterStatus;
       }
 
-      const response = await api.get('/servicos', { params });
-      setServicos(response.data.servicos || response.data);
+      const [servicosResponse, lojasResponse, particularesResponse] = await Promise.all([
+        api.get('/servicos', { params }),
+        api.get('/lojas'),
+        api.get('/clientes_particulares'),
+      ]);
+
+      const servicosData = servicosResponse.data.servicos || servicosResponse.data || [];
+      const lojasData = lojasResponse.data.lojas || lojasResponse.data || [];
+      const particularesData = particularesResponse.data.clientes || particularesResponse.data || [];
+
+      const lojasMap = new Map(
+        (Array.isArray(lojasData) ? lojasData : []).map((loja) => [loja.id, loja.nome_fantasia || loja.razao_social || 'Loja'])
+      );
+      const particularesMap = new Map(
+        (Array.isArray(particularesData) ? particularesData : []).map((cliente) => [cliente.id, cliente.nome || 'Cliente'])
+      );
+
+      setServicos((Array.isArray(servicosData) ? servicosData : []).map((servico) => normalizeService(servico, lojasMap, particularesMap)));
     } catch (error) {
       console.error('Erro ao carregar serviços:', error);
     } finally {

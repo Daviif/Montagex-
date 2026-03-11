@@ -175,6 +175,7 @@ const Clientes = () => {
     
     // Parse endereço existente (formato: "Rua, Número, Complemento, Bairro, Cidade, Estado, CEP")
     const enderecoParts = (cliente?.endereco || '').split(',').map(part => part.trim())
+    const hasBairro = enderecoParts.length >= 7
     
     setParticularForm({
       nome: cliente?.nome || '',
@@ -182,10 +183,10 @@ const Clientes = () => {
       endereco_rua: enderecoParts[0] || '',
       endereco_numero: enderecoParts[1] || '',
       endereco_complemento: enderecoParts[2] || '',
-      endereco_bairro: enderecoParts[3] || '',
-      endereco_cidade: enderecoParts[4] || '',
-      endereco_estado: enderecoParts[5] || '',
-      endereco_cep: enderecoParts[6] || ''
+      endereco_bairro: hasBairro ? (enderecoParts[3] || '') : '',
+      endereco_cidade: hasBairro ? (enderecoParts[4] || '') : (enderecoParts[3] || ''),
+      endereco_estado: hasBairro ? (enderecoParts[5] || '') : (enderecoParts[4] || ''),
+      endereco_cep: hasBairro ? (enderecoParts[6] || '') : (enderecoParts[5] || '')
     })
     setIsParticularModalOpen(true)
   }
@@ -253,7 +254,6 @@ const Clientes = () => {
       endereco?.logradouro || data?.logradouro,
       endereco?.numero || data?.numero,
       endereco?.complemento || data?.complemento,
-      endereco?.bairro || data?.bairro,
       endereco?.municipio || data?.municipio,
       endereco?.uf || data?.uf,
       endereco?.cep || data?.cep
@@ -367,10 +367,6 @@ const Clientes = () => {
       setActionError('Informe o número do endereço.')
       return
     }
-    if (!particularForm.endereco_bairro.trim()) {
-      setActionError('Informe o bairro do endereço.')
-      return
-    }
     if (!particularForm.endereco_cidade.trim()) {
       setActionError('Informe a cidade do endereço.')
       return
@@ -393,7 +389,6 @@ const Clientes = () => {
         particularForm.endereco_rua.trim(),
         particularForm.endereco_numero.trim(),
         particularForm.endereco_complemento.trim(),
-        particularForm.endereco_bairro.trim(),
         particularForm.endereco_cidade.trim(),
         particularForm.endereco_estado.trim(),
         particularForm.endereco_cep.trim()
@@ -917,7 +912,7 @@ const Clientes = () => {
 
               <div className="clientes__form-grid">
                 <label className="clientes__label">
-                  Bairro *
+                  Bairro
                   <input
                     type="text"
                     className="clientes__input"
@@ -926,7 +921,6 @@ const Clientes = () => {
                       ...prev,
                       endereco_bairro: event.target.value
                     }))}
-                    required
                   />
                 </label>
                 <label className="clientes__label">

@@ -7,6 +7,15 @@ const dashboardSalariosRoutes = require('./dashboardSalarios');
 const lojasRoutes = require('./lojas');
 const servicosRoutes = require('./servicos');
 const anexosRoutes = require('./anexos');
+const perfilRoutes = require('./perfil');
+const {
+  requireAdmin,
+  authorizeResource,
+  filterPagamentosForMontador,
+  sanitizePagamentosResponse,
+  validatePagamentoOwnership,
+  sanitizePagamentoById
+} = require('../middleware/permissions');
 const { models } = require('../models');
 
 const router = express.Router();
@@ -22,11 +31,14 @@ router.use('/auth', authRoutes);
 router.use(authMiddleware);
 
 // Rotas de dashboard
-router.use('/dashboard/salarios', dashboardSalariosRoutes);
+router.use('/dashboard/salarios', requireAdmin('Apenas administradores podem acessar salários'), dashboardSalariosRoutes);
 router.use('/dashboard', dashboardRoutes);
 
+// Perfil do usuário autenticado
+router.use('/perfil', perfilRoutes);
+
 // Rota customizada de lojas (com recálculo automático)
-router.use('/lojas', lojasRoutes);
+router.use('/lojas', authorizeResource('lojas'), lojasRoutes);
 
 // Rota customizada de servicos (com validação de foreign keys)
 router.use('/servicos', servicosRoutes);
@@ -52,8 +64,62 @@ const routeMap = {
   configuracoes: models.Configuracao
 };
 
+const validateUniqueRotaServico = async (req, res) => {
+  const { rota_id, servico_id } = req.body || {};
+
+  if (!rota_id || !servico_id) {
+    return true;
+  }
+
+  const existing = await models.RotaServico.findOne({
+    where: { rota_id, servico_id }
+  });
+
+  if (existing) {
+    res.status(409).json({
+      error: 'Registro duplicado',
+      details: [
+        {
+          field: 'rota_id, servico_id',
+          message: 'Este serviço já está vinculado a esta rota'
+        }
+      ]
+    });
+    return false;
+  }
+
+  return true;
+};
+
 Object.entries(routeMap).forEach(([path, model]) => {
-  router.use(`/${path}`, createCrudRouter(model));
+  const resourceMiddleware = authorizeResource(path);
+
+  if (path === 'pagamentos_funcionarios') {
+    router.use(
+      `/${path}`,
+      resourceMiddleware,
+      createCrudRouter(model, {
+        beforeGetAll: filterPagamentosForMontador,
+        afterGetAll: sanitizePagamentosResponse,
+        beforeGetById: validatePagamentoOwnership,
+        afterGetById: sanitizePagamentoById
+      })
+    );
+    return;
+  }
+
+  if (path === 'rota_servicos') {
+    router.use(
+      `/${path}`,
+      resourceMiddleware,
+      createCrudRouter(model, {
+        beforeCreate: validateUniqueRotaServico
+      })
+    );
+    return;
+  }
+
+  router.use(`/${path}`, resourceMiddleware, createCrudRouter(model));
 });
 
 module.exports = router;

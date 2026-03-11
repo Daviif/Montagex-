@@ -143,12 +143,12 @@ router.get('/', async (req, res) => {
 
       // Aplicar divisão por percentual se definido
       if (sm.percentual_divisao != null && Number(sm.percentual_divisao) > 0) {
-        return (valorBase * Number(sm.percentual_divisao)) / 100;
+        return ((valorBase * Number(sm.percentual_divisao)) / 100) / 2;
       }
 
       // Dividir igualmente entre montadores
       const totalMontadores = montadoresPorServico[sm.servico_id] || 1;
-      return valorBase / totalMontadores;
+      return (valorBase / totalMontadores) / 2;
     };
 
     // Para cada montador, calcular seus valores
