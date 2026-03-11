@@ -77,11 +77,6 @@ const Login = () => {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
 
-          <div className="login-demo-info">
-            <p><strong>Demo:</strong></p>
-            <p>Email: admin@montagex.com</p>
-            <p>Senha: admin123</p>
-          </div>
         </form>
       </div>
     </div>

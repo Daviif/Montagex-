@@ -149,13 +149,10 @@ const authorizeServicoWrite = async (req, res, next) => {
   next();
 };
 
-const filterPagamentosForMontador = (req, res, next) => {
-  if (!isMontador(req)) {
-    return next();
+const filterPagamentosForMontador = (req, res) => {
+  if (isMontador(req)) {
+    req.query.usuario_id = req.user.id;
   }
-
-  req.query.usuario_id = req.user.id;
-  next();
 };
 
 const sanitizePagamentosResponse = (req, pagamentos) => {

@@ -17,6 +17,8 @@ const Recebimento = require('./Recebimento')(sequelize, Sequelize.DataTypes);
 const PagamentoFuncionario = require('./PagamentoFuncionario')(sequelize, Sequelize.DataTypes);
 const Despesa = require('./Despesa')(sequelize, Sequelize.DataTypes);
 const Configuracao = require('./Configuracao')(sequelize, Sequelize.DataTypes);
+const PagamentoFuncionarioBaixa = require('./PagamentoFuncionarioBaixa')(sequelize, Sequelize.DataTypes);
+const PagamentoFuncionarioAnexo = require('./PagamentoFuncionarioAnexo')(sequelize, Sequelize.DataTypes);
 
 Equipe.hasMany(EquipeMembro, { foreignKey: 'equipe_id' });
 EquipeMembro.belongsTo(Equipe, { foreignKey: 'equipe_id' });
@@ -65,6 +67,18 @@ Servico.hasMany(PagamentoFuncionario, { foreignKey: 'servico_id' });
 PagamentoFuncionario.belongsTo(Usuario, { foreignKey: 'usuario_id' });
 PagamentoFuncionario.belongsTo(Servico, { foreignKey: 'servico_id' });
 
+PagamentoFuncionario.hasMany(PagamentoFuncionarioBaixa, { foreignKey: 'pagamento_funcionario_id', as: 'baixas' });
+PagamentoFuncionarioBaixa.belongsTo(PagamentoFuncionario, { foreignKey: 'pagamento_funcionario_id' });
+Usuario.hasMany(PagamentoFuncionarioBaixa, { foreignKey: 'responsavel_id' });
+PagamentoFuncionarioBaixa.belongsTo(Usuario, { foreignKey: 'responsavel_id', as: 'responsavel' });
+
+PagamentoFuncionario.hasMany(PagamentoFuncionarioAnexo, { foreignKey: 'pagamento_funcionario_id', as: 'anexos' });
+PagamentoFuncionarioAnexo.belongsTo(PagamentoFuncionario, { foreignKey: 'pagamento_funcionario_id' });
+PagamentoFuncionarioAnexo.belongsTo(Usuario, { foreignKey: 'criado_por', as: 'criador' });
+
+Usuario.hasMany(PagamentoFuncionario, { foreignKey: 'responsavel_id', as: 'pagamentos_lancados' });
+PagamentoFuncionario.belongsTo(Usuario, { foreignKey: 'responsavel_id', as: 'responsavel' });
+
 Usuario.hasMany(Despesa, { foreignKey: 'responsavel_id' });
 Despesa.belongsTo(Usuario, { foreignKey: 'responsavel_id', as: 'responsavel' });
 
@@ -92,6 +106,8 @@ module.exports = {
     Recebimento,
     PagamentoFuncionario,
     Despesa,
-    Configuracao
+    Configuracao,
+    PagamentoFuncionarioBaixa,
+    PagamentoFuncionarioAnexo
   }
 };

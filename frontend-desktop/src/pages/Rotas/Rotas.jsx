@@ -1172,8 +1172,9 @@ const Rotas = () => {
                   ? encodeURIComponent(proximoServico.endereco)
                   : `${proximoServico.lat},${proximoServico.lng}`
 
-                // URL do Google Maps - apenas origem → próximo serviço
-                const googleMapsUrl = `https://www.google.com/maps/dir/${currentLocation.lat},${currentLocation.lng}/${destinoMapa}`
+                // Link externo para navegação no Waze.
+                // Usa o mesmo destino exibido na lista para evitar divergência de cidade.
+                const wazeUrl = `https://www.waze.com/ul?q=${destinoMapa}&navigate=yes`
 
                 return (
                   <div className="rotas__map-content">
@@ -1192,12 +1193,12 @@ const Rotas = () => {
                           <span>Precisão: ±{Math.round(currentLocation.accuracy)}m</span>
                         </div>
                         <a
-                          href={googleMapsUrl}
+                          href={wazeUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="rotas__map-open-link"
                         >
-                          Abrir no Google Maps
+                          Abrir no Waze
                         </a>
                       </div>
                     </div>

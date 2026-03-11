@@ -287,11 +287,36 @@ CREATE TABLE pagamentos_funcionarios (
     usuario_id UUID NOT NULL REFERENCES usuarios(id),
     servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE CASCADE,
     valor NUMERIC(10,2) NOT NULL,
+    valor_pago NUMERIC(10,2) DEFAULT 0,
+    categoria VARCHAR(30) DEFAULT 'salario',
+    origem VARCHAR(30) DEFAULT 'servico',
+    data_vencimento DATE,
     data_pagamento DATE,
+    observacoes TEXT,
+    responsavel_id UUID REFERENCES usuarios(id),
     status VARCHAR(20)
 );
 
 CREATE INDEX idx_pagamentos_usuario ON pagamentos_funcionarios(usuario_id);
+CREATE INDEX idx_pagamentos_status ON pagamentos_funcionarios(status);
+CREATE INDEX idx_pagamentos_data_vencimento ON pagamentos_funcionarios(data_vencimento);
+CREATE INDEX idx_pagamentos_responsavel ON pagamentos_funcionarios(responsavel_id);
+
+CREATE TABLE pagamentos_funcionarios_baixas (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pagamento_funcionario_id UUID NOT NULL REFERENCES pagamentos_funcionarios(id) ON DELETE CASCADE,
+    valor NUMERIC(10,2) NOT NULL,
+    data_pagamento DATE NOT NULL,
+    forma_pagamento VARCHAR(30),
+    observacoes TEXT,
+    responsavel_id UUID REFERENCES usuarios(id),
+    created_at TIMESTAMP DEFAULT now(),
+    CHECK (valor > 0)
+);
+
+CREATE INDEX idx_pagamentos_baixas_pagamento ON pagamentos_funcionarios_baixas(pagamento_funcionario_id);
+CREATE INDEX idx_pagamentos_baixas_data ON pagamentos_funcionarios_baixas(data_pagamento);
+CREATE INDEX idx_pagamentos_baixas_responsavel ON pagamentos_funcionarios_baixas(responsavel_id);
 
 -- =====================================================
 -- DESPESAS

@@ -89,6 +89,19 @@ router.get('/', async (req, res) => {
         status: 'pendente'
       });
 
+      const totalParcialPrevisto = await sumField(models.PagamentoFuncionario, 'valor', {
+        usuario_id: usuarioId,
+        status: 'parcial'
+      });
+
+      const totalParcialPago = await sumField(models.PagamentoFuncionario, 'valor_pago', {
+        usuario_id: usuarioId,
+        status: 'parcial'
+      });
+
+      const pendenteParcial = Math.max(totalParcialPrevisto - totalParcialPago, 0);
+      const pendenteTotal = totalPendente + pendenteParcial;
+
       const lucro = totalRecebido - totalDespesas;
       const margemLucro = totalRecebido > 0 ? (lucro / totalRecebido) * 100 : 0;
       const variacaoMes = totalRecebidoMesAnterior > 0
@@ -177,7 +190,7 @@ router.get('/', async (req, res) => {
             total_recebido: parseFloat(totalRecebido.toFixed(2)),
             total_despesas: parseFloat(totalDespesas.toFixed(2)),
             lucro: parseFloat(lucro.toFixed(2)),
-            pendente: parseFloat(totalPendente.toFixed(2)),
+            pendente: parseFloat(pendenteTotal.toFixed(2)),
             margem_lucro: parseFloat(margemLucro.toFixed(2)),
             variacao_mes: parseFloat(variacaoMes.toFixed(2))
           },

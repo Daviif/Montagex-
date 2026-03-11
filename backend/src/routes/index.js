@@ -8,6 +8,7 @@ const lojasRoutes = require('./lojas');
 const servicosRoutes = require('./servicos');
 const anexosRoutes = require('./anexos');
 const perfilRoutes = require('./perfil');
+const createPagamentosFuncionariosRouter = require('./pagamentosFuncionarios');
 const {
   requireAdmin,
   authorizeResource,
@@ -98,7 +99,7 @@ Object.entries(routeMap).forEach(([path, model]) => {
     router.use(
       `/${path}`,
       resourceMiddleware,
-      createCrudRouter(model, {
+      createPagamentosFuncionariosRouter({
         beforeGetAll: filterPagamentosForMontador,
         afterGetAll: sanitizePagamentosResponse,
         beforeGetById: validatePagamentoOwnership,
