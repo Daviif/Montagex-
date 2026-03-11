@@ -24,6 +24,9 @@ module.exports = (sequelize, DataTypes) => {
     },
     forma_pagamento: {
       type: DataTypes.STRING(30)
+    },
+    observacoes: {
+      type: DataTypes.TEXT
     }
   }, {
     tableName: 'recebimentos',

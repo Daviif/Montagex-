@@ -25,7 +25,7 @@ const pool = process.env.DATABASE_URL
       password: process.env.DB_PASSWORD
     });
 
-// Migrações da pasta raiz /database/migrations (001 a 010)
+// Migrações da pasta raiz /database/migrations (001 em diante)
 const ROOT_MIGRATIONS = path.resolve(__dirname, '../../database/migrations');
 // Migrações específicas do backend (009, 010)
 const BACKEND_MIGRATIONS = path.resolve(__dirname, '../database/migrations');
@@ -42,6 +42,9 @@ const FILES = [
   path.join(ROOT_MIGRATIONS, '009_add_usuario_perfil.sql'),
   path.join(BACKEND_MIGRATIONS, '009_servico_anexos.sql'),
   path.join(ROOT_MIGRATIONS, '010_add_desconto_servico_produtos.sql'),
+  path.join(ROOT_MIGRATIONS, '011_add_percentual_salario_usuarios.sql'),
+  path.join(ROOT_MIGRATIONS, '012_allow_usuario_and_equipe_servico_montadores.sql'),
+  path.join(ROOT_MIGRATIONS, '013_add_observacoes_recebimentos.sql'),
 ];
 
 async function runMigrations() {

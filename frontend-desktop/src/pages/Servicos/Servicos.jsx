@@ -28,6 +28,22 @@ const parseNumericValue = (value) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const formatDateOnlyPtBr = (value) => {
+  if (!value) return '-';
+
+  if (typeof value === 'string') {
+    const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateOnlyMatch) {
+      const [, year, month, day] = dateOnlyMatch;
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('pt-BR');
+};
+
 const Servicos = () => {
   const { user } = useContext(AuthContext);
   const isAdmin = user?.tipo === 'admin';
@@ -40,6 +56,7 @@ const Servicos = () => {
   const { data: produtos, loading: produtosLoading } = useApi('/produtos');
   const { data: servicoProdutos, loading: servicoProdutosLoading, refetch: refetchServicoProdutos } = useApi('/servico_produtos');
   const { data: servicoMontadores, loading: servicoMontadoresLoading, refetch: refetchServicoMontadores } = useApi('/servico_montadores');
+  const { data: equipeMembros, loading: equipeMembrosLoading } = useApi('/equipe_membros');
   const { data: rotaServicos, loading: rotaServicosLoading } = useApi('/rota_servicos');
   const { data: equipes, loading: equipesLoading } = useApi('/equipes');
 
@@ -167,6 +184,48 @@ const Servicos = () => {
     return map;
   }, [produtos]);
 
+  const equipeMembrosByEquipeId = useMemo(() => {
+    const map = {};
+    if (equipeMembros) {
+      equipeMembros.forEach((membro) => {
+        if (!membro?.equipe_id || !membro?.usuario_id) return;
+        if (!map[membro.equipe_id]) {
+          map[membro.equipe_id] = [];
+        }
+        map[membro.equipe_id].push(membro.usuario_id);
+      });
+    }
+    return map;
+  }, [equipeMembros]);
+
+  const buildEquipeMontadores = useCallback((equipeId, existingRows = []) => {
+    if (!equipeId) return [];
+
+    const usuariosEquipe = Array.from(new Set(equipeMembrosByEquipeId[equipeId] || []));
+    const existingByUsuarioId = (existingRows || []).reduce((acc, item) => {
+      if (item?.usuario_id) {
+        acc[item.usuario_id] = item;
+      }
+      return acc;
+    }, {});
+
+    return usuariosEquipe.map((usuarioId) => {
+      const usuario = usuariosById[usuarioId];
+      const existing = existingByUsuarioId[usuarioId];
+      const percentual = existing?.percentual_divisao != null
+        ? Number(existing.percentual_divisao)
+        : Math.min(Math.max(Number(usuario?.percentual_salario ?? 50), 0), 100);
+
+      return {
+        equipe_id: equipeId,
+        usuario_id: usuarioId,
+        percentual_divisao: Number(percentual.toFixed(2)),
+        valor_atribuido: 0,
+        papel: existing?.papel || 'principal'
+      };
+    });
+  }, [equipeMembrosByEquipeId, usuariosById]);
+
   // Map de serviços associados em rotas (para permitir/impedir deletar)
   const servicoRotasCount = useMemo(() => {
     const map = {};
@@ -188,6 +247,8 @@ const Servicos = () => {
       const matchStatus = statusFilter === 'todos' || s.status === statusFilter;
       const matchCliente = clienteFilter === 'todos' || s.tipo_cliente === clienteFilter;
       const matchSearch = searchTerm === '' || 
+        s.codigo_os_loja?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.codigo_servico?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.endereco_execucao.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.observacoes?.toLowerCase().includes(searchTerm.toLowerCase());
       return matchStatus && matchCliente && matchSearch;
@@ -332,8 +393,10 @@ const Servicos = () => {
       const temIndividual = montadores.some(m => m.usuario_id && !m.equipe_id);
       
       if (temEquipe) {
+        const equipeId = montadores.find(m => m.equipe_id)?.equipe_id || '';
         setTipoAtribuicao('equipe');
-        setEquipeSelecionada(montadores.find(m => m.equipe_id)?.equipe_id || '');
+        setEquipeSelecionada(equipeId);
+        setTabMontadores(buildEquipeMontadores(equipeId, montadores));
       } else if (temIndividual) {
         setTipoAtribuicao('individual');
         setEquipeSelecionada('');
@@ -343,7 +406,7 @@ const Servicos = () => {
     setEditingId(servico.id);
     carregarAnexos(servico.id);
     setShowModal(true);
-  }, [getServicoProdutos, getServicoMontadores]);
+  }, [buildEquipeMontadores, getServicoProdutos, getServicoMontadores]);
 
   // Duplicate existing service into a new draft
   const handleDuplicate = useCallback((servico) => {
@@ -396,8 +459,10 @@ const Servicos = () => {
       const temIndividual = montadores.some(m => m.usuario_id && !m.equipe_id);
 
       if (temEquipe) {
+        const equipeId = montadores.find(m => m.equipe_id)?.equipe_id || '';
         setTipoAtribuicao('equipe');
-        setEquipeSelecionada(montadores.find(m => m.equipe_id)?.equipe_id || '');
+        setEquipeSelecionada(equipeId);
+        setTabMontadores(buildEquipeMontadores(equipeId, montadores));
       } else if (temIndividual) {
         setTipoAtribuicao('individual');
         setEquipeSelecionada('');
@@ -411,7 +476,7 @@ const Servicos = () => {
     setEditingId(null);
     setShowModal(true);
     showNotice('success', 'Serviço duplicado. Revise os dados e salve para criar a nova OS.');
-  }, [getServicoMontadores, getServicoProdutos, showNotice]);
+  }, [buildEquipeMontadores, getServicoMontadores, getServicoProdutos, showNotice]);
 
   // Create new
   const handleNew = useCallback(() => {
@@ -704,13 +769,13 @@ const Servicos = () => {
             0
           );
           const valorPorMontador = montadoresUnicos.length > 0
-            ? Number((repasseBase / montadoresUnicos.length).toFixed(2))
+            ? Number((totalProdutos / montadoresUnicos.length).toFixed(2))
             : 0;
 
           montadoresPayload = montadoresUnicos.map((montador) => {
             const percentual = Number(montador.percentual_divisao || 0);
             const valorCalculado = percentual > 0
-              ? (repasseBase * percentual) / 100
+              ? (totalProdutos * percentual) / 100
               : valorPorMontador;
             const valorManual = Number(montador.valor_atribuido || 0);
             const valorFinal = valorManual > 0 ? valorManual : valorCalculado;
@@ -724,16 +789,38 @@ const Servicos = () => {
             };
           });
         } else if (tipoAtribuicao === 'equipe') {
-          // Atribuição por equipe
-          const equipeValida = tabMontadores.find((montador) => montador.equipe_id);
-          if (equipeValida) {
-            montadoresPayload = [{
-              servico_id: servicoId,
-              equipe_id: equipeValida.equipe_id,
-              valor_atribuido: Number(repasseBase.toFixed(2)),
-              papel: 'principal'
-            }];
+          const montadoresEquipe = tabMontadores
+            .filter((montador) => montador.usuario_id && montador.equipe_id)
+            .map((montador) => {
+              const percentual = Math.min(Math.max(Number(montador.percentual_divisao || 0), 0), 100);
+              return {
+                ...montador,
+                percentual_divisao: percentual
+              };
+            });
+
+          if (montadoresEquipe.length === 0) {
+            throw new Error('Selecione uma equipe com montadores válidos.');
           }
+
+          montadoresPayload = montadoresEquipe.map((montador) => {
+            // Aplicar percentual_divisao ao valor TOTAL (250), não ao repasseBase
+            const valorAtribuido = (totalProdutos * montador.percentual_divisao) / 100;
+            console.log('🔵 SERVICOS.JSX - Equipe:', {
+              totalProdutos,
+              percentual_divisao: montador.percentual_divisao,
+              calculo: `${totalProdutos} * ${montador.percentual_divisao} / 100`,
+              valorAtribuido: Number(valorAtribuido.toFixed(2))
+            });
+            return {
+              servico_id: servicoId,
+              equipe_id: montador.equipe_id,
+              usuario_id: montador.usuario_id,
+              valor_atribuido: Number(valorAtribuido.toFixed(2)),
+              papel: montador.papel || 'principal',
+              percentual_divisao: Number(montador.percentual_divisao || 0)
+            };
+          });
         }
 
         if (montadoresPayload.length > 0) {
@@ -884,7 +971,7 @@ const Servicos = () => {
   };
 
   const loading = servicosLoading || lojasLoading || particularLoading || usuariosLoading || 
-                  produtosLoading || servicoProdutosLoading || servicoMontadoresLoading;
+                  produtosLoading || servicoProdutosLoading || servicoMontadoresLoading || equipeMembrosLoading;
 
   if (loading) return <div className="servicos-container"><p>Carregando...</p></div>;
 
@@ -968,6 +1055,7 @@ const Servicos = () => {
               <thead>
                 <tr>
                   <th>Data</th>
+                  <th>Nº OS</th>
                   <th>Cliente</th>
                   <th>Tipo</th>
                   <th>Endereço</th>
@@ -985,7 +1073,8 @@ const Servicos = () => {
                   const mts = getServicoMontadores(servico.id);
                   return (
                     <tr key={servico.id}>
-                      <td>{new Date(servico.data_servico).toLocaleDateString('pt-BR')}</td>
+                      <td>{formatDateOnlyPtBr(servico.data_servico)}</td>
+                      <td className="servicos__small-text">{servico.codigo_os_loja || servico.codigo_servico || '-'}</td>
                       <td>
                         <strong>{clienteInfo.nome}</strong>
                         <div className="servicos__small-text">{clienteInfo.cpf_cnpj}</div>
@@ -1230,14 +1319,13 @@ const Servicos = () => {
               </div>
               <div className="servicos__form-row">
                 <div className="servicos__form-group">
-                  <label htmlFor="endereco_bairro">Bairro *</label>
+                  <label htmlFor="endereco_bairro">Bairro</label>
                   <input
                     id="endereco_bairro"
                     type="text"
                     value={formData.endereco_bairro}
                     onChange={(e) => setFormData({ ...formData, endereco_bairro: e.target.value })}
                     onBlur={(e) => handleEnderecoBlur('endereco_bairro', e.target.value)}
-                    required
                   />
                 </div>
                 <div className="servicos__form-group">
@@ -1334,9 +1422,7 @@ const Servicos = () => {
                       setTipoAtribuicao(tipo);
                       if (tipo === 'individual') {
                         setEquipeSelecionada('');
-                        if (tabMontadores.length === 0) {
-                          setTabMontadores([{ usuario_id: '', valor_atribuido: 0, papel: 'principal' }]);
-                        }
+                        setTabMontadores([{ usuario_id: '', valor_atribuido: 0, papel: 'principal' }]);
                       } else {
                         // Limpar montadores quando mudar para equipe
                         setTabMontadores([]);
@@ -1385,7 +1471,7 @@ const Servicos = () => {
                         const equipaId = e.target.value;
                         setEquipeSelecionada(equipaId);
                         if (equipaId) {
-                          setTabMontadores([{ equipe_id: equipaId, valor_atribuido: 0, papel: 'principal' }]);
+                          setTabMontadores(buildEquipeMontadores(equipaId));
                         } else {
                           setTabMontadores([]);
                         }
@@ -1401,6 +1487,49 @@ const Servicos = () => {
                   </div>
                 )}
               </div>
+
+              {tipoAtribuicao === 'equipe' && equipeSelecionada && (
+                <div className="servicos__form-section">
+                  <h3 className="servicos__section-title">Percentual de salário por montador da equipe</h3>
+
+                  {tabMontadores.length === 0 ? (
+                    <p className="servicos__no-items">Esta equipe não possui montadores cadastrados.</p>
+                  ) : (
+                    <div className="servicos__table-wrapper">
+                      <table className="servicos__table">
+                        <thead>
+                          <tr>
+                            <th>Montador</th>
+                            <th>% Salário no Serviço</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tabMontadores.map((montador, idx) => (
+                            <tr key={`${montador.equipe_id}-${montador.usuario_id}`}>
+                              <td>{usuariosById[montador.usuario_id]?.nome || 'Montador'}</td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.01"
+                                  value={montador.percentual_divisao ?? ''}
+                                  onChange={(e) => {
+                                    const valor = e.target.value;
+                                    const percentual = valor === '' ? '' : Math.min(Math.max(Number(valor), 0), 100);
+                                    handleUpdateMontador(idx, 'percentual_divisao', percentual);
+                                  }}
+                                  className="servicos__produto-qty"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 5. Status */}
               <div className="servicos__form-group servicos__form-group--full">

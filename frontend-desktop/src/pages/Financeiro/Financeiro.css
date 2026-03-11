@@ -173,6 +173,29 @@
   color: var(--text-secondary);
 }
 
+.financeiro__card-extra {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.financeiro__debug-toggle {
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.financeiro__debug-toggle--active {
+  border-color: #0369a1;
+  background: #e0f2fe;
+  color: #075985;
+}
+
 .financeiro__table-wrapper {
   overflow-x: auto;
   border: 1px solid var(--border-color);
@@ -202,6 +225,31 @@
 .financeiro__table td {
   padding: var(--spacing-md);
   border-bottom: 1px solid var(--border-color);
+}
+
+.financeiro__expand-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.financeiro__detail-row td {
+  background: var(--bg-primary);
+}
+
+.financeiro__detail-box {
+  padding: var(--spacing-sm) 0;
+}
+
+.financeiro__table--compact th,
+.financeiro__table--compact td {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .financeiro__table tbody tr:hover {
@@ -246,6 +294,17 @@
   background: var(--bg-primary);
 }
 
+.financeiro__debug-row td {
+  background: #f8fafc;
+  border-top: 0;
+}
+
+.financeiro__debug-line {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 2px 0;
+}
+
 .financeiro__empty {
   text-align: center;
   color: var(--text-secondary);
@@ -274,6 +333,11 @@
 .financeiro__status--pendente {
   background: var(--warning-light);
   color: var(--warning);
+}
+
+.financeiro__status--parcial {
+  background: #e0f2fe;
+  color: #075985;
 }
 
 .financeiro__status--pago,
@@ -412,6 +476,11 @@
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
+}
+
+.financeiro__textarea {
+  resize: vertical;
+  min-height: 84px;
 }
 
 .financeiro__modal-actions {

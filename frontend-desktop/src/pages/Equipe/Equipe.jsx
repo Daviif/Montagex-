@@ -50,7 +50,8 @@ const Equipe = () => {
     email: '',
     senha: '',
     ativo: true,
-    isAdmin: false
+    isAdmin: false,
+    percentual_salario: '50'
   })
 
   // ===== DADOS =====
@@ -216,7 +217,8 @@ const Equipe = () => {
       email: '',
       senha: '',
       ativo: true,
-      isAdmin: false
+      isAdmin: false,
+      percentual_salario: '50'
     })
     setIsMontadorModalOpen(true)
   }
@@ -229,7 +231,8 @@ const Equipe = () => {
       email: montador.email || '',
       senha: '',
       ativo: Boolean(montador.ativo),
-      isAdmin: montador.tipo === 'admin'
+      isAdmin: montador.tipo === 'admin',
+      percentual_salario: String(montador.percentual_salario ?? 50)
     })
     setIsMontadorModalOpen(true)
   }
@@ -363,6 +366,12 @@ const Equipe = () => {
       return
     }
 
+    const percentualSalario = Number(montadorForm.percentual_salario)
+    if (!Number.isFinite(percentualSalario) || percentualSalario < 0 || percentualSalario > 100) {
+      setActionError('Informe um percentual de salario valido entre 0 e 100.')
+      return
+    }
+
     try {
       setIsActionLoading(true)
       setActionError('')
@@ -371,7 +380,8 @@ const Equipe = () => {
         nome: montadorForm.nome.trim(),
         email: montadorForm.email.trim(),
         tipo: montadorForm.isAdmin ? 'admin' : 'montador',
-        ativo: montadorForm.ativo
+        ativo: montadorForm.ativo,
+        percentual_salario: percentualSalario
       }
 
       if (montadorForm.senha) {
@@ -516,6 +526,7 @@ const Equipe = () => {
                       <tr>
                         <th>Montador</th>
                         <th>Contato</th>
+                        <th>% Salario</th>
                         <th>Equipe</th>
                         <th>Status</th>
                         <th></th>
@@ -534,6 +545,7 @@ const Equipe = () => {
                               <div className="equipe__name">{montador.nome}</div>
                             </td>
                             <td>{montador.email || 'Sem email'}</td>
+                            <td>{Number(montador.percentual_salario ?? 50).toFixed(2)}%</td>
                             <td>{equipesDoMontador.length > 0 ? equipesDoMontador.join(', ') : 'Sem equipe'}</td>
                             <td>
                               <span
@@ -994,6 +1006,22 @@ const Equipe = () => {
                   onChange={(event) => setMontadorForm((prev) => ({
                     ...prev,
                     nome: event.target.value
+                  }))}
+                  required
+                />
+              </label>
+              <label className="equipe__label">
+                Percentual de salario (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className="equipe__input"
+                  value={montadorForm.percentual_salario}
+                  onChange={(event) => setMontadorForm((prev) => ({
+                    ...prev,
+                    percentual_salario: event.target.value
                   }))}
                   required
                 />

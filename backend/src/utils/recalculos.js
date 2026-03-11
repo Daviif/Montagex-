@@ -45,16 +45,34 @@ async function recalcularValoresMontadores(servicoId, valorRepasseMontagem, mode
 
   if (montadores.length === 0) return;
 
+  const isIndividual = montadores.length === 1;
+
+  // Buscar percentual_salario apenas para caso individual
+  const percentualPorUsuario = {};
+  if (isIndividual && montadores[0].usuario_id && !montadores[0].equipe_id) {
+    const usuario = await models.Usuario.findByPk(montadores[0].usuario_id, {
+      attributes: ['id', 'percentual_salario']
+    });
+    if (usuario) {
+      percentualPorUsuario[usuario.id] = Math.min(Math.max(Number(usuario.percentual_salario ?? 50), 0), 100);
+    }
+  }
+
   const valorRepasse = Number(valorRepasseMontagem || 0);
-  const valorPorMontador = (valorRepasse / montadores.length) / 2;
 
   for (const montador of montadores) {
     let novoValorMontador;
 
-    if (montador.percentual_divisao != null && Number(montador.percentual_divisao) > 0) {
-      novoValorMontador = ((valorRepasse * Number(montador.percentual_divisao)) / 100) / 2;
+    if (isIndividual && !montador.equipe_id && montador.usuario_id) {
+      // Individual: valor_repasse × percentual_salario do cadastro
+      const percentualSalario = percentualPorUsuario[montador.usuario_id] ?? 50;
+      novoValorMontador = valorRepasse * (percentualSalario / 100);
+    } else if (montador.percentual_divisao != null && Number(montador.percentual_divisao) > 0) {
+      // Equipe: valor_repasse × percentual_divisao definido
+      novoValorMontador = (valorRepasse * Number(montador.percentual_divisao)) / 100;
     } else {
-      novoValorMontador = valorPorMontador;
+      // Fallback: divisão igualitária
+      novoValorMontador = valorRepasse / montadores.length;
     }
 
     // Atualizar apenas se mudou
@@ -136,12 +154,22 @@ async function recalcularValorMontador(montadorId, models) {
     where: { servico_id: servico.id }
   });
 
+  const usuario = montador.usuario_id
+    ? await models.Usuario.findByPk(montador.usuario_id, { attributes: ['id', 'percentual_salario'] })
+    : null;
+  const percentualCadastro = Math.min(Math.max(Number(usuario?.percentual_salario ?? 50), 0), 100);
+
   let novoValorMontador;
 
-  if (montador.percentual_divisao != null && Number(montador.percentual_divisao) > 0) {
-    novoValorMontador = ((valorRepasse * Number(montador.percentual_divisao)) / 100) / 2;
+  if (montador.equipe_id) {
+    const percentualEquipe = montador.percentual_divisao != null
+      ? Math.min(Math.max(Number(montador.percentual_divisao), 0), 100)
+      : percentualCadastro;
+    novoValorMontador = (valorRepasse / totalMontadores) * (percentualEquipe / 100);
+  } else if (montador.percentual_divisao != null && Number(montador.percentual_divisao) > 0) {
+    novoValorMontador = ((valorRepasse * Number(montador.percentual_divisao)) / 100) * (percentualCadastro / 100);
   } else {
-    novoValorMontador = (valorRepasse / totalMontadores) / 2;
+    novoValorMontador = (valorRepasse / totalMontadores) * (percentualCadastro / 100);
   }
 
   // Atualizar apenas se mudou

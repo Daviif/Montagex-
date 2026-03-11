@@ -194,13 +194,7 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Nota sobre Windows Desktop */}
-      <div className="windows-note">
-        <p className="windows-note-title">Ativar o Windows</p>
-        <p className="windows-note-text">
-          Acesse as configurações do computador para ativar o Windows.
-        </p>
-      </div>
+      
     </div>
   )
 }

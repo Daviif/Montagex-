@@ -14,6 +14,7 @@ CREATE TABLE usuarios (
     email VARCHAR(120) UNIQUE,
     senha_hash TEXT,
     tipo VARCHAR(20) CHECK (tipo IN ('admin','montador')),
+    percentual_salario NUMERIC(5,2) DEFAULT 50,
     ativo BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP
@@ -202,9 +203,9 @@ CREATE TABLE servico_montadores (
     created_at TIMESTAMP DEFAULT now(),
     
     CHECK (
-        (usuario_id IS NOT NULL AND equipe_id IS NULL)
+        usuario_id IS NOT NULL
         OR
-        (equipe_id IS NOT NULL AND usuario_id IS NULL)
+        equipe_id IS NOT NULL
     )
 );
 
