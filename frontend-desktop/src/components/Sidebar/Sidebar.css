@@ -15,6 +15,23 @@
 .sidebar-header {
   padding: var(--spacing-lg);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-mobile-close {
+  display: none;
+  border: none;
+  background: transparent;
+  color: var(--text-white);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--border-radius-sm);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 24px;
 }
 
 .logo {
@@ -195,9 +212,14 @@
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
   }
   
   .sidebar.open {
     transform: translateX(0);
+  }
+
+  .sidebar-mobile-close {
+    display: inline-flex;
   }
 }

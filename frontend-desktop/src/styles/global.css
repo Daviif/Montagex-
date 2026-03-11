@@ -113,6 +113,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body.mobile-nav-open {
+  overflow: hidden;
+}
+
 #root {
   min-height: 100vh;
 }

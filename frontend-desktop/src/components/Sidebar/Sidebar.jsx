@@ -1,6 +1,7 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { 
+  MdClose,
   MdDashboard, 
   MdConstruction, 
   MdPeople, 
@@ -58,7 +59,13 @@ const menuItems = [
   }
 ]
 
-const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: false } }) => {
+const Sidebar = ({
+  isOffline = false,
+  queueStatus = { pending: 0, isSyncing: false },
+  isOpen = false,
+  onNavigate,
+  onClose
+}) => {
   const { user } = useAuth()
 
   const getConnectionStatus = () => {
@@ -101,12 +108,20 @@ const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: fal
   })()
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
         <div className="logo">
           <FaBox className="logo-icon" />
           <span className="logo-text">Montagex</span>
         </div>
+        <button
+          type="button"
+          className="sidebar-mobile-close"
+          onClick={onClose}
+          aria-label="Fechar menu"
+        >
+          <MdClose />
+        </button>
       </div>
 
       <nav className="sidebar-nav">
@@ -114,6 +129,7 @@ const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: fal
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={onNavigate}
             className={({ isActive }) => 
               `sidebar-nav-item ${isActive ? 'active' : ''}`
             }
@@ -125,7 +141,12 @@ const Sidebar = ({ isOffline = false, queueStatus = { pending: 0, isSyncing: fal
       </nav>
 
       <div className="sidebar-footer">
-        <NavLink to="/perfil" className="user-info user-info--link" title="Abrir perfil">
+        <NavLink
+          to="/perfil"
+          className="user-info user-info--link"
+          title="Abrir perfil"
+          onClick={onNavigate}
+        >
           <div className="user-avatar">
             {avatarUrl ? (
               <img src={avatarUrl} alt="Avatar" className="user-avatar-image" />
