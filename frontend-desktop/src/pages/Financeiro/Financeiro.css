@@ -208,6 +208,39 @@
   background: var(--bg-primary);
 }
 
+.financeiro__row-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.financeiro__icon-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.financeiro__icon-btn:hover {
+  transform: translateY(-1px);
+}
+
+.financeiro__icon-btn--edit:hover {
+  background: var(--warning-light);
+  color: var(--warning);
+}
+
+.financeiro__icon-btn--delete:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
 .financeiro__table-total td {
   font-weight: 600;
   background: var(--bg-primary);

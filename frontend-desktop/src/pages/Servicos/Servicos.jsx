@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
   MdAdd,
   MdClose,
+  MdContentCopy,
   MdDelete,
   MdEdit,
   MdSearch
@@ -343,6 +344,74 @@ const Servicos = () => {
     carregarAnexos(servico.id);
     setShowModal(true);
   }, [getServicoProdutos, getServicoMontadores]);
+
+  // Duplicate existing service into a new draft
+  const handleDuplicate = useCallback((servico) => {
+    const enderecoParts = (servico.endereco_execucao || '').split(',').map(part => part.trim());
+    const hasBairro = enderecoParts.length >= 6;
+
+    setFormData({
+      data_servico: servico.data_servico || '',
+      tipo_cliente: servico.tipo_cliente || 'loja',
+      loja_id: servico.loja_id || '',
+      cliente_particular_id: servico.cliente_particular_id || '',
+      endereco_rua: enderecoParts[0] || servico.endereco_execucao || '',
+      endereco_numero: enderecoParts[1] || '',
+      endereco_bairro: hasBairro ? (enderecoParts[2] || '') : '',
+      endereco_cidade: hasBairro ? (enderecoParts[3] || '') : (enderecoParts[2] || ''),
+      endereco_estado: hasBairro ? (enderecoParts[4] || '') : (enderecoParts[3] || ''),
+      endereco_cep: hasBairro ? (enderecoParts[5] || '') : (enderecoParts[4] || ''),
+      latitude: servico.latitude || '',
+      longitude: servico.longitude || '',
+      prioridade: servico.prioridade || 0,
+      janela_inicio: servico.janela_inicio || '',
+      janela_fim: servico.janela_fim || '',
+      observacoes: servico.observacoes || '',
+      status: 'agendado',
+      cliente_final_nome: servico.cliente_final_nome || '',
+      cliente_final_contato: servico.cliente_final_contato || '',
+      codigo_os_loja: servico.codigo_os_loja || ''
+    });
+
+    const montadores = getServicoMontadores(servico.id);
+    setTabProdutos(
+      getServicoProdutos(servico.id).map((item) => {
+        const valorDesconto = parseNumericValue(item.valor_desconto);
+
+        return {
+          ...item,
+          quantidade: parseNumericValue(item.quantidade) || 1,
+          valor_unitario: parseNumericValue(item.valor_unitario),
+          utilizar_desconto: item.utilizar_desconto != null
+            ? Boolean(item.utilizar_desconto)
+            : valorDesconto > 0,
+          valor_desconto: valorDesconto
+        };
+      })
+    );
+    setTabMontadores(montadores);
+
+    if (montadores && montadores.length > 0) {
+      const temEquipe = montadores.some(m => m.equipe_id);
+      const temIndividual = montadores.some(m => m.usuario_id && !m.equipe_id);
+
+      if (temEquipe) {
+        setTipoAtribuicao('equipe');
+        setEquipeSelecionada(montadores.find(m => m.equipe_id)?.equipe_id || '');
+      } else if (temIndividual) {
+        setTipoAtribuicao('individual');
+        setEquipeSelecionada('');
+      }
+    } else {
+      setTipoAtribuicao('individual');
+      setEquipeSelecionada('');
+    }
+
+    setAnexos([]);
+    setEditingId(null);
+    setShowModal(true);
+    showNotice('success', 'Serviço duplicado. Revise os dados e salve para criar a nova OS.');
+  }, [getServicoMontadores, getServicoProdutos, showNotice]);
 
   // Create new
   const handleNew = useCallback(() => {
@@ -947,6 +1016,13 @@ const Servicos = () => {
                               title="Editar"
                             >
                               <MdEdit />
+                            </button>
+                            <button
+                              className="servicos__action-btn servicos__action-btn--duplicate"
+                              onClick={() => handleDuplicate(servico)}
+                              title="Duplicar"
+                            >
+                              <MdContentCopy />
                             </button>
                             <button
                               className="servicos__action-btn servicos__action-btn--delete"

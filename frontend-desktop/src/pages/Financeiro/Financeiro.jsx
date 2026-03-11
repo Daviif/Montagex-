@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   MdAccountBalanceWallet,
   MdAttachMoney,
-  MdPayments,
+  MdDelete,
+  MdEdit,
   MdReceiptLong,
   MdSearch,
   MdExpandMore,
@@ -19,6 +20,7 @@ const Financeiro = () => {
   const [activeTab, setActiveTab] = useState('salarios')
   const [searchTerm, setSearchTerm] = useState('')
   const [isDespesaModalOpen, setIsDespesaModalOpen] = useState(false)
+  const [editingDespesaId, setEditingDespesaId] = useState(null)
   const [isRecebimentoModalOpen, setIsRecebimentoModalOpen] = useState(false)
   const [expandedMontadores, setExpandedMontadores] = useState(() => new Set())
   const [despesaForm, setDespesaForm] = useState({
@@ -48,7 +50,6 @@ const Financeiro = () => {
     loading: recebimentosLoading,
     refetch: refetchRecebimentos
   } = useApi('/recebimentos', 'GET', [])
-  const { data: pagamentosData, loading: pagamentosLoading } = useApi('/pagamentos_funcionarios', 'GET', [])
   const {
     data: despesasData,
     loading: despesasLoading,
@@ -64,13 +65,13 @@ const Financeiro = () => {
   const formatCurrency = useCurrency()
 
   useEffect(() => {
-    if (isMontador && activeTab !== 'pagamentos') {
-      setActiveTab('pagamentos')
+    if (isMontador && activeTab !== 'recebimentos') {
+      setActiveTab('recebimentos')
       setSearchTerm('')
     }
   }, [isMontador, activeTab])
 
-  const isLoading = salariosLoading || recebimentosLoading || pagamentosLoading || despesasLoading
+  const isLoading = salariosLoading || recebimentosLoading || despesasLoading
 
   const usuariosMap = useMemo(() => {
     return (usuariosData || []).reduce((acc, usuario) => {
@@ -79,9 +80,9 @@ const Financeiro = () => {
     }, {})
   }, [usuariosData])
 
-  const montadoresList = useMemo(() => {
+  const responsaveisDespesasList = useMemo(() => {
     return (usuariosData || []).filter((usuario) =>
-      usuario.tipo === 'montador' || usuario.tipo === null || usuario.tipo === ''
+      usuario.tipo === 'admin' || usuario.tipo === 'montador' || usuario.tipo === null || usuario.tipo === ''
     )
   }, [usuariosData])
 
@@ -323,27 +324,6 @@ const Financeiro = () => {
     })
   }, [recebimentosData, searchNormalized, servicosMap])
 
-  const pagamentosList = useMemo(() => {
-    const list = Array.isArray(pagamentosData) ? pagamentosData : []
-    if (!searchNormalized) return list
-
-    return list.filter((item) => {
-      const usuario = usuariosMap[item.usuario_id]
-      const servico = servicosMap[item.servico_id]
-      const values = [
-        item.status,
-        usuario?.nome,
-        servico?.codigo_servico,
-        servico?.endereco_execucao,
-        item.servico_id
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      return values.includes(searchNormalized)
-    })
-  }, [pagamentosData, searchNormalized, usuariosMap, servicosMap])
-
   const despesasList = useMemo(() => {
     const list = Array.isArray(despesasData) ? despesasData : []
     if (!searchNormalized) return list
@@ -366,8 +346,6 @@ const Financeiro = () => {
     switch (activeTab) {
       case 'recebimentos':
         return 'Novo Recebimento'
-      case 'pagamentos':
-        return 'Novo Pagamento'
       case 'despesas':
         return 'Nova Despesa'
       default:
@@ -379,6 +357,7 @@ const Financeiro = () => {
 
   const handleActionClick = () => {
     if (activeTab === 'despesas') {
+      setEditingDespesaId(null)
       setDespesaForm({
         categoria: 'Outros',
         valor: '',
@@ -400,6 +379,30 @@ const Financeiro = () => {
     }
   }
 
+  const handleEditDespesa = (despesa) => {
+    setEditingDespesaId(despesa.id)
+    setDespesaForm({
+      categoria: despesa.categoria || 'Outros',
+      valor: despesa.valor != null ? String(despesa.valor) : '',
+      data_despesa: despesa.data_despesa ? despesa.data_despesa.split('T')[0] : '',
+      responsavel_id: despesa.responsavel_id || '',
+      descricao: despesa.descricao || ''
+    })
+    setIsDespesaModalOpen(true)
+  }
+
+  const handleDeleteDespesa = async (despesa) => {
+    const shouldDelete = window.confirm('Deseja remover esta despesa?')
+    if (!shouldDelete) return
+
+    try {
+      await api.delete(`/despesas/${despesa.id}`)
+      refetchDespesas()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Não foi possível remover a despesa.')
+    }
+  }
+
   const handleToggleRecebimentoStatus = async (recebimento) => {
     const newStatus = recebimento.status === 'pendente' ? 'recebido' : 'pendente'
     const dataRecebimento = newStatus === 'recebido' ? new Date().toISOString().split('T')[0] : null
@@ -416,35 +419,26 @@ const Financeiro = () => {
     }
   }
 
-  const handleTogglePagamentoStatus = async (pagamento) => {
-    const newStatus = pagamento.status === 'pendente' ? 'pago' : 'pendente'
-    const dataPagamento = newStatus === 'pago' ? new Date().toISOString().split('T')[0] : null
-
-    try {
-      await api.put(`/pagamentos_funcionarios/${pagamento.id}`, {
-        ...pagamento,
-        status: newStatus,
-        data_pagamento: dataPagamento
-      })
-      window.location.reload()
-    } catch (err) {
-      console.error('Erro ao alterar status:', err)
-    }
-  }
-
   const handleDespesaSubmit = async (event) => {
     event.preventDefault()
 
     try {
-      await api.post('/despesas', {
+      const payload = {
         descricao: despesaForm.descricao || 'Despesa registrada',
         categoria: despesaForm.categoria || null,
         valor: despesaForm.valor ? Number(despesaForm.valor) : 0,
         data_despesa: despesaForm.data_despesa,
         responsavel_id: despesaForm.responsavel_id || null
-      })
+      }
+
+      if (editingDespesaId) {
+        await api.put(`/despesas/${editingDespesaId}`, payload)
+      } else {
+        await api.post('/despesas', payload)
+      }
 
       setIsDespesaModalOpen(false)
+      setEditingDespesaId(null)
       refetchDespesas()
     } catch (err) {
       alert(err.response?.data?.error || 'Não foi possível salvar a despesa.')
@@ -476,7 +470,7 @@ const Financeiro = () => {
       <div className="financeiro__header">
         <div>
           <h1 className="financeiro__title">Financeiro</h1>
-          <p className="financeiro__subtitle">Controle de recebimentos, pagamentos e despesas</p>
+          <p className="financeiro__subtitle">Controle de recebimentos e despesas</p>
         </div>
         {actionLabel && (
           <button className="financeiro__button" type="button" onClick={handleActionClick}>
@@ -499,29 +493,16 @@ const Financeiro = () => {
             Salários
           </button>
         )}
-        {!isMontador && (
-          <button
-            type="button"
-            className={`financeiro__tab ${activeTab === 'recebimentos' ? 'financeiro__tab--active' : ''}`}
-            onClick={() => {
-              setActiveTab('recebimentos')
-              setSearchTerm('')
-            }}
-          >
-            <MdAttachMoney />
-            Recebimentos
-          </button>
-        )}
         <button
           type="button"
-          className={`financeiro__tab ${activeTab === 'pagamentos' ? 'financeiro__tab--active' : ''}`}
+          className={`financeiro__tab ${activeTab === 'recebimentos' ? 'financeiro__tab--active' : ''}`}
           onClick={() => {
-            setActiveTab('pagamentos')
+            setActiveTab('recebimentos')
             setSearchTerm('')
           }}
         >
-          <MdPayments />
-          Pagamentos
+          <MdAttachMoney />
+          Recebimentos
         </button>
         {!isMontador && (
           <button
@@ -646,7 +627,7 @@ const Financeiro = () => {
         </Card>
       )}
 
-      {!isLoading && !isMontador && activeTab === 'recebimentos' && (
+      {!isLoading && activeTab === 'recebimentos' && (
         <Card title="Recebimentos" className="financeiro__card">
           {recebimentosList.length === 0 ? (
             <div className="financeiro__empty">Nenhum recebimento</div>
@@ -676,60 +657,10 @@ const Financeiro = () => {
                         </span>
                       </td>
                       <td>
-                        {isMontador && item.status !== 'pago'
-                          ? 'Disponível após pagamento'
-                          : formatCurrency(Number(item.valor || 0))}
+                        {formatCurrency(Number(item.valor || 0))}
                       </td>
                       <td>{formatDate(item.data_prevista)}</td>
                       <td>{formatDate(item.data_recebimento)}</td>
-                      <td className="financeiro__muted">
-                        {servicosMap[item.servico_id]?.codigo_servico || item.servico_id?.slice(0, 8)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {!isLoading && activeTab === 'pagamentos' && (
-        <Card title="Pagamentos" className="financeiro__card">
-          {pagamentosList.length === 0 ? (
-            <div className="financeiro__empty">Nenhum pagamento</div>
-          ) : (
-            <div className="financeiro__table-wrapper">
-              <table className="financeiro__table">
-                <thead>
-                  <tr>
-                    <th>Montador</th>
-                    <th>Status</th>
-                    <th>Valor</th>
-                    <th>Pago em</th>
-                    <th>Serviço</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagamentosList.map((item) => (
-                    <tr key={item.id}>
-                      <td>{usuariosMap[item.usuario_id]?.nome || 'Não informado'}</td>
-                      <td>
-                        <span 
-                          className={`financeiro__status financeiro__status--${item.status || 'pendente'}`}
-                          onClick={() => isAdmin && handleTogglePagamentoStatus(item)}
-                          style={{ cursor: isAdmin ? 'pointer' : 'default' }}
-                          title={isAdmin ? 'Clique para alterar status' : ''}
-                        >
-                          {item.status || 'pendente'}
-                        </span>
-                      </td>
-                      <td>
-                        {isMontador && item.status !== 'pago'
-                          ? 'Disponível após pagamento'
-                          : formatCurrency(Number(item.valor || 0))}
-                      </td>
-                      <td>{formatDate(item.data_pagamento)}</td>
                       <td className="financeiro__muted">
                         {servicosMap[item.servico_id]?.codigo_servico || item.servico_id?.slice(0, 8)}
                       </td>
@@ -756,6 +687,7 @@ const Financeiro = () => {
                     <th>Responsável</th>
                     <th>Valor</th>
                     <th>Data</th>
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -766,6 +698,26 @@ const Financeiro = () => {
                       <td>{usuariosMap[item.responsavel_id]?.nome || '-'}</td>
                       <td>{formatCurrency(Number(item.valor || 0))}</td>
                       <td>{formatDate(item.data_despesa)}</td>
+                      <td>
+                        <div className="financeiro__row-actions">
+                          <button
+                            type="button"
+                            className="financeiro__icon-btn financeiro__icon-btn--edit"
+                            onClick={() => handleEditDespesa(item)}
+                            title="Editar despesa"
+                          >
+                            <MdEdit />
+                          </button>
+                          <button
+                            type="button"
+                            className="financeiro__icon-btn financeiro__icon-btn--delete"
+                            onClick={() => handleDeleteDespesa(item)}
+                            title="Remover despesa"
+                          >
+                            <MdDelete />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -779,11 +731,14 @@ const Financeiro = () => {
         <div className="financeiro__modal-backdrop" onClick={() => setIsDespesaModalOpen(false)}>
           <div className="financeiro__modal" onClick={(event) => event.stopPropagation()}>
             <div className="financeiro__modal-header">
-              <h3>Nova Despesa</h3>
+              <h3>{editingDespesaId ? 'Editar Despesa' : 'Nova Despesa'}</h3>
               <button
                 type="button"
                 className="financeiro__modal-close"
-                onClick={() => setIsDespesaModalOpen(false)}
+                onClick={() => {
+                  setIsDespesaModalOpen(false)
+                  setEditingDespesaId(null)
+                }}
               >
                 ×
               </button>
@@ -805,6 +760,7 @@ const Financeiro = () => {
                     <option value="Combustível">Combustível</option>
                     <option value="Ferramentas">Ferramentas</option>
                     <option value="Materiais">Materiais</option>
+                    <option value="Salário">Salário</option>
                     <option value="Outros">Outros</option>
                   </select>
                 </label>
@@ -850,9 +806,9 @@ const Financeiro = () => {
                     }))}
                   >
                     <option value="">Nenhum</option>
-                    {montadoresList.map((montador) => (
-                      <option key={montador.id} value={montador.id}>
-                        {montador.nome}
+                    {responsaveisDespesasList.map((usuario) => (
+                      <option key={usuario.id} value={usuario.id}>
+                        {usuario.nome}
                       </option>
                     ))}
                   </select>
@@ -877,12 +833,15 @@ const Financeiro = () => {
                 <button
                   type="button"
                   className="financeiro__button financeiro__button--ghost"
-                  onClick={() => setIsDespesaModalOpen(false)}
+                  onClick={() => {
+                    setIsDespesaModalOpen(false)
+                    setEditingDespesaId(null)
+                  }}
                 >
                   Cancelar
                 </button>
                 <button type="submit" className="financeiro__button">
-                  Cadastrar
+                  {editingDespesaId ? 'Salvar Alterações' : 'Cadastrar'}
                 </button>
               </div>
             </form>

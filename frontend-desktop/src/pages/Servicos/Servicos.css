@@ -364,6 +364,11 @@
   color: var(--warning);
 }
 
+.servicos__action-btn--duplicate:hover {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
 .servicos__action-btn--delete:hover {
   background: var(--danger-light);
   color: var(--danger);
